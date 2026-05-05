@@ -146,9 +146,78 @@ async function executeQuery(sql: string, env: Env): Promise<any> {
 // Fetch handler (for HTTP requests if needed later)
 export default {
   async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
-    return new Response("Analytics Worker - use service bindings for write/query", {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    });
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Only accept POST requests for tracking
+    if (request.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+        status: 405,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    try {
+      const body = await request.json() as Record<string, any>;
+
+      switch (path) {
+        case "/track/trade": {
+          const { payload, result, latencyMs } = body;
+          await trackTrade(payload, result, latencyMs, env);
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        case "/track/api-call": {
+          const { worker: workerName, endpoint, latencyMs, success } = body;
+          await trackApiCall(workerName, endpoint, latencyMs, success, env);
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        case "/track/worker-perf": {
+          const { data } = body;
+          await trackWorkerPerf(data, env);
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        case "/track/signal": {
+          const { data } = body;
+          await trackSignal(data, env);
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        case "/track/notification": {
+          const { data } = body;
+          await trackNotification(data, env);
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        default:
+          return new Response(JSON.stringify({ error: "Not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" }
+          });
+      }
+    } catch (error: any) {
+      console.error("Analytics tracking error:", error);
+      return new Response(JSON.stringify({ error: error.message || "Tracking failed" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
   }
 };

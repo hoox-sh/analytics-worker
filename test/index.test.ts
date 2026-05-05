@@ -39,14 +39,33 @@ describe("Analytics Worker", () => {
     expect(mockEnv.ANALYTICS_ENGINE.writeDataPoint).toHaveBeenCalled();
   });
 
-  test("fetch handler returns correct response", async () => {
+  test("fetch handler returns method not allowed for GET", async () => {
     const { default: worker } = await import("../src/index.ts");
     const req = new Request("http://localhost/");
     const resp = await worker.fetch(req, mockEnv as any, {} as any);
     const text = await resp.text();
     
-    expect(text).toContain("Analytics Worker");
+    expect(text).toContain("Method not allowed");
+    expect(resp.status).toBe(405);
+  });
+
+  test("fetch handler tracks trade via POST", async () => {
+    const { default: worker } = await import("../src/index.ts");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payload: { exchange: "binance", action: "LONG", symbol: "BTCUSDT", quantity: 0.5 },
+        result: { success: true },
+        latencyMs: 1200
+      })
+    });
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    const data = (await resp.json()) as { success: boolean };
+    
+    expect(data.success).toBe(true);
     expect(resp.status).toBe(200);
+    expect(mockEnv.ANALYTICS_ENGINE.writeDataPoint).toHaveBeenCalled();
   });
 
   test("getTradeMetrics calls executeQuery with correct SQL", async () => {
