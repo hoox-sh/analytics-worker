@@ -2,6 +2,7 @@
 import type { Env, DataPoint, TradePayload, TradeResult, WorkerPerfData, ApiCallData, SignalData, NotificationData } from "./types";
 import { buildDataPoint } from "./helpers";
 import { buildQuery } from "./query-builder";
+import { Errors, createJsonResponse } from '@hoox/shared/errors';
 
 // Declare global objects for Cloudflare Workers runtime
 declare const ANALYTICS_ENGINE: any;
@@ -151,10 +152,7 @@ export default {
 
     // Only accept POST requests for tracking
     if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        status: 405,
-        headers: { "Content-Type": "application/json" }
-      });
+      return Errors.methodNotAllowed();
     }
 
     try {
@@ -164,60 +162,39 @@ export default {
         case "/track/trade": {
           const { payload, result, latencyMs } = body;
           await trackTrade(payload, result, latencyMs, env);
-          return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          });
+          return createJsonResponse({ success: true });
         }
 
         case "/track/api-call": {
           const { worker: workerName, endpoint, latencyMs, success } = body;
           await trackApiCall(workerName, endpoint, latencyMs, success, env);
-          return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          });
+          return createJsonResponse({ success: true });
         }
 
         case "/track/worker-perf": {
           const { data } = body;
           await trackWorkerPerf(data, env);
-          return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          });
+          return createJsonResponse({ success: true });
         }
 
         case "/track/signal": {
           const { data } = body;
           await trackSignal(data, env);
-          return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          });
+          return createJsonResponse({ success: true });
         }
 
         case "/track/notification": {
           const { data } = body;
           await trackNotification(data, env);
-          return new Response(JSON.stringify({ success: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          });
+          return createJsonResponse({ success: true });
         }
 
         default:
-          return new Response(JSON.stringify({ error: "Not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" }
-          });
+          return Errors.notFound();
       }
     } catch (error: any) {
       console.error("Analytics tracking error:", error);
-      return new Response(JSON.stringify({ error: error.message || "Tracking failed" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      });
+      return Errors.internal(error.message || "Tracking failed");
     }
   }
 };
