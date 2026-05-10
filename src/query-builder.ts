@@ -34,10 +34,8 @@ export const buildQuery = {
   },
 
   getTradeSuccessRate(timeRange?: string): string {
-    const timeFilter = timeRange 
-      ? `AND timestamp >= '${timeRange}'` 
-      : '';
-    
+    const timeFilter = timeRange ? `AND timestamp >= '${timeRange}'` : "";
+
     return `
       SELECT 
         COUNT(*) as total,
@@ -50,10 +48,8 @@ export const buildQuery = {
   },
 
   getWorkerPerformance(worker: string, timeRange?: string): string {
-    const timeFilter = timeRange 
-      ? `AND timestamp >= '${timeRange}'` 
-      : '';
-    
+    const timeFilter = timeRange ? `AND timestamp >= '${timeRange}'` : "";
+
     return `
       SELECT 
         blob1 as data_type,
@@ -69,10 +65,8 @@ export const buildQuery = {
   },
 
   getApiCallStats(exchange?: string): string {
-    const exchangeFilter = exchange 
-      ? `AND blob3 = '${exchange}'` 
-      : '';
-    
+    const exchangeFilter = exchange ? `AND blob3 = '${exchange}'` : "";
+
     return `
       SELECT 
         blob3 as endpoint,
@@ -88,10 +82,8 @@ export const buildQuery = {
   },
 
   getSignalOutcomes(timeRange?: string): string {
-    const timeFilter = timeRange 
-      ? `AND timestamp >= '${timeRange}'` 
-      : '';
-    
+    const timeFilter = timeRange ? `AND timestamp >= '${timeRange}'` : "";
+
     return `
       SELECT 
         blob2 as source,
@@ -105,5 +97,5 @@ export const buildQuery = {
       GROUP BY blob2, blob3, blob4
       ORDER BY signal_count DESC
     `.trim();
-  }
+  },
 };

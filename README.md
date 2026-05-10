@@ -46,6 +46,7 @@ This worker is part of the **[Hoox Trading System](https://github.com/jango-bloc
 ## Setup
 
 1. **Install dependencies:**
+
    ```bash
    bun install
    ```
@@ -53,15 +54,17 @@ This worker is part of the **[Hoox Trading System](https://github.com/jango-bloc
 2. **Set your Cloudflare® account ID in `wrangler.jsonc`.**
 
 3. **Create necessary D1 database and R2 bucket:**
+
    ```bash
    # D1 database for trade data (if not already created)
    npx wrangler d1 create hoox-analytics-db
-   
+
    # R2 bucket for storing reports
    npx wrangler r2 bucket create hoox-reports
    ```
 
 4. **Configure `wrangler.jsonc` with bindings:**
+
    ```jsonc
    {
      "name": "analytics-worker",
@@ -73,18 +76,16 @@ This worker is part of the **[Hoox Trading System](https://github.com/jango-bloc
        {
          "binding": "DB",
          "database_name": "hoox-analytics-db",
-         "database_id": "YOUR_D1_DATABASE_ID"
-       }
+         "database_id": "YOUR_D1_DATABASE_ID",
+       },
      ],
      "r2_buckets": [
        {
          "binding": "REPORTS_BUCKET",
-         "bucket_name": "hoox-reports"
-       }
+         "bucket_name": "hoox-reports",
+       },
      ],
-     "services": [
-       { "binding": "D1_SERVICE", "service": "d1-worker" }
-     ]
+     "services": [{ "binding": "D1_SERVICE", "service": "d1-worker" }],
    }
    ```
 
@@ -99,11 +100,13 @@ This worker is part of the **[Hoox Trading System](https://github.com/jango-bloc
 ## Development
 
 Run locally:
+
 ```bash
 bun run dev
 ```
 
 Deploy:
+
 ```bash
 bun run deploy
 ```
@@ -117,6 +120,7 @@ bun run deploy
 Returns current performance metrics.
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -126,7 +130,7 @@ Returns current performance metrics.
     "profitFactor": 2.1,
     "sharpeRatio": 1.8,
     "maxDrawdown": 12.3,
-    "totalPnL": 4500.50
+    "totalPnL": 4500.5
   }
 }
 ```
@@ -136,6 +140,7 @@ Returns current performance metrics.
 Returns historical trade data with optional filters.
 
 **Query Parameters:**
+
 - `limit` (optional): Number of trades to return (default: 100)
 - `offset` (optional): Pagination offset (default: 0)
 - `symbol` (optional): Filter by trading symbol
@@ -143,6 +148,7 @@ Returns historical trade data with optional filters.
 - `endDate` (optional): Filter trades before this date
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -160,6 +166,7 @@ Returns historical trade data with optional filters.
 Generates a detailed PDF/CSV report and stores it in R2.
 
 **Request Body:**
+
 ```json
 {
   "format": "pdf",
@@ -170,6 +177,7 @@ Generates a detailed PDF/CSV report and stores it in R2.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -200,13 +208,13 @@ Exports all trade data as a CSV file.
 
 ## Metrics Calculated
 
-| Metric | Description |
-|--------|-------------|
-| **Win Rate** | Percentage of profitable trades |
-| **Profit Factor** | Gross profit / Gross loss |
-| **Sharpe Ratio** | Risk-adjusted return metric |
-| **Max Drawdown** | Largest peak-to-trough decline |
-| **Expectancy** | Average amount won/lost per trade |
+| Metric              | Description                        |
+| ------------------- | ---------------------------------- |
+| **Win Rate**        | Percentage of profitable trades    |
+| **Profit Factor**   | Gross profit / Gross loss          |
+| **Sharpe Ratio**    | Risk-adjusted return metric        |
+| **Max Drawdown**    | Largest peak-to-trough decline     |
+| **Expectancy**      | Average amount won/lost per trade  |
 | **Kelly Criterion** | Optimal position sizing percentage |
 
 ---
@@ -220,11 +228,11 @@ Configure cron triggers in `wrangler.jsonc` for automated reports:
   "triggers": [
     {
       "type": "cron",
-      "cron": "0 9 * * MON",  // Every Monday at 9 AM
+      "cron": "0 9 * * MON", // Every Monday at 9 AM
       "method": "POST",
-      "path": "/cron/weekly-report"
-    }
-  ]
+      "path": "/cron/weekly-report",
+    },
+  ],
 }
 ```
 
@@ -238,4 +246,4 @@ Configure cron triggers in `wrangler.jsonc` for automated reports:
 
 ---
 
-*Cloudflare® and the Cloudflare logo are trademarks and/or registered trademarks of Cloudflare, Inc. in the United States and other jurisdictions.*
+_Cloudflare® and the Cloudflare logo are trademarks and/or registered trademarks of Cloudflare, Inc. in the United States and other jurisdictions._

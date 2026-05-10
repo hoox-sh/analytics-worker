@@ -13,7 +13,7 @@
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
-    "@hoox/shared": "workspace:*"
+    "@jango-blockchained/hoox-shared": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250502.0",
@@ -22,7 +22,9 @@
     "wrangler": "^4.83.0"
   },
   "vitest": {
-    "include": ["src/index.test.ts"],
+    "include": [
+      "src/index.test.ts"
+    ],
     "config": "./vitest.config.ts"
   }
 }

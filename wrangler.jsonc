@@ -6,16 +6,16 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 1
+    "head_sampling_rate": 1,
   },
   "analytics_engine_datasets": [
     {
       "binding": "ANALYTICS_ENGINE",
-      "dataset": "hoox-analytics"
-    }
+      "dataset": "hoox-analytics",
+    },
   ],
   "vars": {
-    "CLOUDFLARE_ACCOUNT_ID": "debc6545e63bea36be059cbc82d80ec8"
+    "CLOUDFLARE_ACCOUNT_ID": "debc6545e63bea36be059cbc82d80ec8",
   },
-  "services": []
+  "services": [],
 }

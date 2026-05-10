@@ -1,8 +1,20 @@
 // workers/analytics-worker/src/index.ts
-import type { Env, DataPoint, TradePayload, TradeResult, WorkerPerfData, ApiCallData, SignalData, NotificationData } from "./types";
+import type {
+  Env,
+  DataPoint,
+  TradePayload,
+  TradeResult,
+  WorkerPerfData,
+  ApiCallData,
+  SignalData,
+  NotificationData,
+} from "./types";
 import { buildDataPoint } from "./helpers";
 import { buildQuery } from "./query-builder";
-import { Errors, createJsonResponse } from '@hoox/shared/errors';
+import {
+  Errors,
+  createJsonResponse,
+} from "@jango-blockchained/hoox-shared/errors";
 
 // Declare global objects for Cloudflare Workers runtime
 declare const ANALYTICS_ENGINE: any;
@@ -14,7 +26,7 @@ export async function writeDataPoint(data: DataPoint, env: Env): Promise<void> {
   env.ANALYTICS_ENGINE.writeDataPoint({
     blobs: data.blobs,
     doubles: data.doubles,
-    indexes: data.indexes
+    indexes: data.indexes,
   });
 }
 
@@ -35,7 +47,12 @@ export async function trackApiCall(
   success: boolean,
   env: Env
 ): Promise<void> {
-  const dataPoint = buildDataPoint.apiCall(worker, endpoint, latencyMs, success);
+  const dataPoint = buildDataPoint.apiCall(
+    worker,
+    endpoint,
+    latencyMs,
+    success
+  );
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
@@ -47,10 +64,7 @@ export async function trackWorkerPerf(
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export async function trackSignal(
-  data: SignalData,
-  env: Env
-): Promise<void> {
+export async function trackSignal(data: SignalData, env: Env): Promise<void> {
   const dataPoint = buildDataPoint.signal(data);
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
@@ -119,7 +133,7 @@ async function executeQuery(sql: string, env: Env): Promise<any> {
   if (!env.CLOUDFLARE_API_TOKEN) {
     throw new Error("CLOUDFLARE_API_TOKEN not configured");
   }
-  
+
   if (!env.CLOUDFLARE_ACCOUNT_ID) {
     throw new Error("CLOUDFLARE_ACCOUNT_ID not configured");
   }
@@ -129,10 +143,10 @@ async function executeQuery(sql: string, env: Env): Promise<any> {
     {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-        "Content-Type": "application/x-www-form-urlencoded"
+        Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: sql
+      body: sql,
     }
   );
 
@@ -156,7 +170,7 @@ export default {
     }
 
     try {
-      const body = await request.json() as Record<string, any>;
+      const body = (await request.json()) as Record<string, any>;
 
       switch (path) {
         case "/track/trade": {
@@ -192,9 +206,11 @@ export default {
         default:
           return Errors.notFound();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Analytics tracking error:", error);
-      return Errors.internal(error.message || "Tracking failed");
+      return Errors.internal(
+        error instanceof Error ? error.message : "Tracking failed"
+      );
     }
-  }
+  },
 };
