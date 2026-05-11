@@ -14,6 +14,7 @@ import { buildQuery } from "./query-builder";
 import {
   Errors,
   createJsonResponse,
+  toError,
 } from "@jango-blockchained/hoox-shared/errors";
 
 // Declare global objects for Cloudflare Workers runtime
@@ -209,7 +210,7 @@ export default {
     } catch (error: unknown) {
       console.error("Analytics tracking error:", error);
       return Errors.internal(
-        error instanceof Error ? error.message : "Tracking failed"
+        toError(error, "Tracking failed")
       );
     }
   },
