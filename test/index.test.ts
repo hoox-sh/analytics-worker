@@ -45,7 +45,13 @@ describe("trackApiCall", () => {
   test("writes an api-call data point to ANALYTICS_ENGINE", async () => {
     const { trackApiCall } = await import("../src/index");
 
-    await trackApiCall("trade-worker", "/api/v3/order", 250, true, mockEnv as any);
+    await trackApiCall(
+      "trade-worker",
+      "/api/v3/order",
+      250,
+      true,
+      mockEnv as any
+    );
 
     expect(mockWriteDataPoint).toHaveBeenCalledTimes(1);
     expect(mockWriteDataPoint).toHaveBeenCalledWith(
@@ -68,7 +74,11 @@ describe("trackWorkerPerf", () => {
     expect(mockWriteDataPoint).toHaveBeenCalledTimes(1);
     expect(mockWriteDataPoint).toHaveBeenCalledWith(
       expect.objectContaining({
-        blobs: expect.arrayContaining(["worker-perf", "trade-worker", "success"]),
+        blobs: expect.arrayContaining([
+          "worker-perf",
+          "trade-worker",
+          "success",
+        ]),
       })
     );
   });
@@ -79,7 +89,12 @@ describe("trackSignal", () => {
     const { trackSignal } = await import("../src/index");
 
     await trackSignal(
-      { source: "agent-worker", type: "BUY", symbol: "ETHUSDT", confidence: 0.85 },
+      {
+        source: "agent-worker",
+        type: "BUY",
+        symbol: "ETHUSDT",
+        confidence: 0.85,
+      },
       mockEnv as any
     );
 
@@ -268,7 +283,12 @@ describe("HTTP fetch handler", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        payload: { exchange: "kraken", action: "LONG", symbol: "BTCUSDT", quantity: 0.1 },
+        payload: {
+          exchange: "kraken",
+          action: "LONG",
+          symbol: "BTCUSDT",
+          quantity: 0.1,
+        },
         result: { success: false },
         latencyMs: 3000,
       }),
@@ -310,9 +330,7 @@ describe("query functions", () => {
   test("getTradeMetrics executes SQL query via fetch", async () => {
     const mockJson = { data: [{ exchange: "binance", trade_count: 5 }] };
     globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(JSON.stringify(mockJson), { status: 200 })
-      )
+      Promise.resolve(new Response(JSON.stringify(mockJson), { status: 200 }))
     );
 
     const { getTradeMetrics } = await import("../src/index");
@@ -337,7 +355,10 @@ describe("query functions", () => {
     };
 
     await expect(
-      getTradeMetrics({ start: "2024-01-01", end: "2024-12-31" }, noTokenEnv as any)
+      getTradeMetrics(
+        { start: "2024-01-01", end: "2024-12-31" },
+        noTokenEnv as any
+      )
     ).rejects.toThrow("CLOUDFLARE_API_TOKEN not configured");
   });
 
@@ -349,30 +370,32 @@ describe("query functions", () => {
     };
 
     await expect(
-      getTradeMetrics({ start: "2024-01-01", end: "2024-12-31" }, noAccountEnv as any)
+      getTradeMetrics(
+        { start: "2024-01-01", end: "2024-12-31" },
+        noAccountEnv as any
+      )
     ).rejects.toThrow("CLOUDFLARE_ACCOUNT_ID not configured");
   });
 
   test("getTradeMetrics throws on non-ok response", async () => {
     globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response("Service Unavailable", { status: 503 })
-      )
+      Promise.resolve(new Response("Service Unavailable", { status: 503 }))
     );
 
     const { getTradeMetrics } = await import("../src/index");
 
     await expect(
-      getTradeMetrics({ start: "2024-01-01", end: "2024-12-31" }, mockEnv as any)
+      getTradeMetrics(
+        { start: "2024-01-01", end: "2024-12-31" },
+        mockEnv as any
+      )
     ).rejects.toThrow("Query failed: 503 Service Unavailable");
   });
 
   test("getTradesByExchange returns data from fetch", async () => {
     const mockJson = { data: [{ timestamp: "2024-01-01", symbol: "BTCUSDT" }] };
     globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(JSON.stringify(mockJson), { status: 200 })
-      )
+      Promise.resolve(new Response(JSON.stringify(mockJson), { status: 200 }))
     );
 
     const { getTradesByExchange } = await import("../src/index");
@@ -382,11 +405,11 @@ describe("query functions", () => {
   });
 
   test("getTradeSuccessRate returns data from fetch", async () => {
-    const mockJson = { data: [{ total: 100, successes: 80, success_rate: 80 }] };
+    const mockJson = {
+      data: [{ total: 100, successes: 80, success_rate: 80 }],
+    };
     globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(JSON.stringify(mockJson), { status: 200 })
-      )
+      Promise.resolve(new Response(JSON.stringify(mockJson), { status: 200 }))
     );
 
     const { getTradeSuccessRate } = await import("../src/index");
@@ -396,15 +419,19 @@ describe("query functions", () => {
   });
 
   test("getWorkerPerformance returns data from fetch", async () => {
-    const mockJson = { data: [{ data_type: "worker-perf", total_requests: 100 }] };
+    const mockJson = {
+      data: [{ data_type: "worker-perf", total_requests: 100 }],
+    };
     globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(JSON.stringify(mockJson), { status: 200 })
-      )
+      Promise.resolve(new Response(JSON.stringify(mockJson), { status: 200 }))
     );
 
     const { getWorkerPerformance } = await import("../src/index");
-    const result = await getWorkerPerformance("trade-worker", "2024-01-01", mockEnv as any);
+    const result = await getWorkerPerformance(
+      "trade-worker",
+      "2024-01-01",
+      mockEnv as any
+    );
 
     expect(result).toEqual(mockJson);
   });
@@ -412,9 +439,7 @@ describe("query functions", () => {
   test("getApiCallStats returns data from fetch", async () => {
     const mockJson = { data: [{ endpoint: "/api/v3/order", call_count: 50 }] };
     globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(JSON.stringify(mockJson), { status: 200 })
-      )
+      Promise.resolve(new Response(JSON.stringify(mockJson), { status: 200 }))
     );
 
     const { getApiCallStats } = await import("../src/index");
@@ -426,9 +451,7 @@ describe("query functions", () => {
   test("getSignalOutcomes returns data from fetch", async () => {
     const mockJson = { data: [{ source: "agent-worker", signal_count: 30 }] };
     globalThis.fetch = mock(() =>
-      Promise.resolve(
-        new Response(JSON.stringify(mockJson), { status: 200 })
-      )
+      Promise.resolve(new Response(JSON.stringify(mockJson), { status: 200 }))
     );
 
     const { getSignalOutcomes } = await import("../src/index");

@@ -212,9 +212,7 @@ export default {
       }
     } catch (error: unknown) {
       logger.error("Analytics tracking error", { error });
-      return Errors.internal(
-        toError(error, "Tracking failed")
-      );
+      return Errors.internal(toError(error, "Tracking failed"));
     }
   },
 };
