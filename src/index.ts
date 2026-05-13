@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { buildDataPoint } from "./helpers";
 import { buildQuery } from "./query-builder";
+import { createLogger } from "@jango-blockchained/hoox-shared/middleware";
 import {
   Errors,
   createJsonResponse,
@@ -21,6 +22,8 @@ import {
 declare const ANALYTICS_ENGINE: any;
 declare const fetch: any;
 // Request and Response are available globally in Cloudflare Workers
+
+const logger = createLogger({ service: "analytics-worker" });
 
 // Service binding methods (called by other workers)
 export async function writeDataPoint(data: DataPoint, env: Env): Promise<void> {
@@ -208,7 +211,7 @@ export default {
           return Errors.notFound();
       }
     } catch (error: unknown) {
-      console.error("Analytics tracking error:", error);
+      logger.error("Analytics tracking error", { error });
       return Errors.internal(
         toError(error, "Tracking failed")
       );
