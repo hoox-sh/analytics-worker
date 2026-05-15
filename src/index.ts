@@ -1,4 +1,5 @@
 // workers/analytics-worker/src/index.ts
+import type { ExecutionContext } from "@cloudflare/workers-types";
 import type {
   Env,
   DataPoint,
@@ -11,12 +12,14 @@ import type {
 } from "./types";
 import { buildDataPoint } from "./helpers";
 import { buildQuery } from "./query-builder";
-import { createLogger } from "@jango-blockchained/hoox-shared/middleware";
+import { createLogger, withRequestLog } from "@jango-blockchained/hoox-shared/middleware";
 import {
   Errors,
   createJsonResponse,
   toError,
 } from "@jango-blockchained/hoox-shared/errors";
+import { createRouter } from "@jango-blockchained/hoox-shared/router";
+import { healthCheck } from "@jango-blockchained/hoox-shared/health";
 
 // Declare global objects for Cloudflare Workers runtime
 declare const ANALYTICS_ENGINE: any;
@@ -24,6 +27,47 @@ declare const fetch: any;
 // Request and Response are available globally in Cloudflare Workers
 
 const logger = createLogger({ service: "analytics-worker" });
+
+const router = createRouter<Env>();
+
+router.get("/health", async (request, env, ctx) => {
+  return healthCheck({ worker: "analytics-worker" });
+});
+
+router.post("/track/trade", async (request, env, ctx) => {
+  const body = (await request.json()) as Record<string, any>;
+  const { payload, result, latencyMs } = body;
+  await trackTrade(payload, result, latencyMs, env);
+  return createJsonResponse({ success: true });
+});
+
+router.post("/track/api-call", async (request, env, ctx) => {
+  const body = (await request.json()) as Record<string, any>;
+  const { worker: workerName, endpoint, latencyMs, success } = body;
+  await trackApiCall(workerName, endpoint, latencyMs, success, env);
+  return createJsonResponse({ success: true });
+});
+
+router.post("/track/worker-perf", async (request, env, ctx) => {
+  const body = (await request.json()) as Record<string, any>;
+  const { data } = body;
+  await trackWorkerPerf(data, env);
+  return createJsonResponse({ success: true });
+});
+
+router.post("/track/signal", async (request, env, ctx) => {
+  const body = (await request.json()) as Record<string, any>;
+  const { data } = body;
+  await trackSignal(data, env);
+  return createJsonResponse({ success: true });
+});
+
+router.post("/track/notification", async (request, env, ctx) => {
+  const body = (await request.json()) as Record<string, any>;
+  const { data } = body;
+  await trackNotification(data, env);
+  return createJsonResponse({ success: true });
+});
 
 // Service binding methods (called by other workers)
 export async function writeDataPoint(data: DataPoint, env: Env): Promise<void> {
@@ -162,57 +206,11 @@ async function executeQuery(sql: string, env: Env): Promise<any> {
   return await response.json();
 }
 
-// Fetch handler (for HTTP requests if needed later)
 export default {
-  async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
-
-    // Only accept POST requests for tracking
-    if (request.method !== "POST") {
-      return Errors.methodNotAllowed();
-    }
-
-    try {
-      const body = (await request.json()) as Record<string, any>;
-
-      switch (path) {
-        case "/track/trade": {
-          const { payload, result, latencyMs } = body;
-          await trackTrade(payload, result, latencyMs, env);
-          return createJsonResponse({ success: true });
-        }
-
-        case "/track/api-call": {
-          const { worker: workerName, endpoint, latencyMs, success } = body;
-          await trackApiCall(workerName, endpoint, latencyMs, success, env);
-          return createJsonResponse({ success: true });
-        }
-
-        case "/track/worker-perf": {
-          const { data } = body;
-          await trackWorkerPerf(data, env);
-          return createJsonResponse({ success: true });
-        }
-
-        case "/track/signal": {
-          const { data } = body;
-          await trackSignal(data, env);
-          return createJsonResponse({ success: true });
-        }
-
-        case "/track/notification": {
-          const { data } = body;
-          await trackNotification(data, env);
-          return createJsonResponse({ success: true });
-        }
-
-        default:
-          return Errors.notFound();
-      }
-    } catch (error: unknown) {
-      logger.error("Analytics tracking error", { error });
-      return Errors.internal(toError(error, "Tracking failed"));
-    }
-  },
+  fetch: withRequestLog(
+    (request: Request, env: Env, ctx: ExecutionContext) => {
+      return router.handle(request, env, ctx);
+    },
+    { service: "analytics-worker", module: "router" }
+  ),
 };
