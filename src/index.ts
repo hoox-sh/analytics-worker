@@ -12,7 +12,10 @@ import type {
 } from "./types";
 import { buildDataPoint } from "./helpers";
 import { buildQuery } from "./query-builder";
-import { createLogger, withRequestLog } from "@jango-blockchained/hoox-shared/middleware";
+import {
+  createLogger,
+  withRequestLog,
+} from "@jango-blockchained/hoox-shared/middleware";
 import {
   Errors,
   createJsonResponse,
