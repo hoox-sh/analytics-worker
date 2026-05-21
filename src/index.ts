@@ -23,232 +23,144 @@ import {
 } from "@jango-blockchained/hoox-shared/errors";
 import { createRouter } from "@jango-blockchained/hoox-shared/router";
 import { healthCheck } from "@jango-blockchained/hoox-shared/health";
+import { validateJson } from "@jango-blockchained/hoox-shared/middleware";
+import { z } from "zod";
 
-// Declare global objects for Cloudflare Workers runtime
-declare const ANALYTICS_ENGINE: any;
-declare const fetch: any;
-// Request and Response are available globally in Cloudflare Workers
+// Request, Response, and fetch are available globally in Cloudflare Workers runtime
+
+// ── Zod validation schemas ──────────────────────────────────────────
+// Each schema validates the HTTP request body for a specific endpoint.
+
+const TradeBodySchema = z
+  .object({
+    payload: z.object({
+      exchange: z.string(),
+      symbol: z.string(),
+      action: z.string(),
+      quantity: z.number(),
+    }),
+    result: z.object({
+      success: z.boolean(),
+    }),
+    latencyMs: z.number().optional(),
+  })
+  .strict();
+
+const ApiCallBodySchema = z
+  .object({
+    worker: z.string(),
+    endpoint: z.string(),
+    latencyMs: z.number(),
+    success: z.boolean(),
+  })
+  .strict();
+
+const WorkerPerfBodySchema = z
+  .object({
+    data: z.object({
+      worker: z.string(),
+      requests: z.number(),
+      errors: z.number(),
+      duration: z.number(),
+    }),
+  })
+  .strict();
+
+const SignalBodySchema = z
+  .object({
+    data: z.object({
+      source: z.string(),
+      type: z.string(),
+      symbol: z.string(),
+      confidence: z.number(),
+    }),
+  })
+  .strict();
+
+const NotificationBodySchema = z
+  .object({
+    data: z.object({
+      type: z.string(),
+      target: z.string(),
+      success: z.boolean(),
+    }),
+  })
+  .strict();
 
 const logger = createLogger({ service: "analytics-worker" });
 
 const router = createRouter<Env>();
-
-// ── Lightweight runtime validation helpers ──────────────────────────
-// Each validates the HTTP request body for a specific endpoint,
-// checking required fields exist and are the correct types.
-// Returns { valid: true } or { valid: false, errors: string[] }.
-
-function validateTradeBody(body: unknown): {
-  valid: boolean;
-  errors?: string[];
-} {
-  if (!body || typeof body !== "object")
-    return { valid: false, errors: ["body must be an object"] };
-  const data = body as Record<string, unknown>;
-  const errors: string[] = [];
-
-  if (!data.payload || typeof data.payload !== "object") {
-    errors.push("payload must be an object");
-  } else {
-    const p = data.payload as Record<string, unknown>;
-    if (typeof p.exchange !== "string")
-      errors.push("exchange must be a string");
-    if (typeof p.symbol !== "string") errors.push("symbol must be a string");
-    if (typeof p.action !== "string") errors.push("action must be a string");
-    if (typeof p.quantity !== "number")
-      errors.push("quantity must be a number");
-  }
-
-  if (!data.result || typeof data.result !== "object") {
-    errors.push("result must be an object");
-  } else {
-    const r = data.result as Record<string, unknown>;
-    if (typeof r.success !== "boolean")
-      errors.push("result.success must be a boolean");
-  }
-
-  return errors.length ? { valid: false, errors } : { valid: true };
-}
-
-function validateApiCallBody(body: unknown): {
-  valid: boolean;
-  errors?: string[];
-} {
-  if (!body || typeof body !== "object")
-    return { valid: false, errors: ["body must be an object"] };
-  const data = body as Record<string, unknown>;
-  const errors: string[] = [];
-
-  if (typeof data.worker !== "string") errors.push("worker must be a string");
-  if (typeof data.endpoint !== "string")
-    errors.push("endpoint must be a string");
-  if (typeof data.latencyMs !== "number")
-    errors.push("latencyMs must be a number");
-  if (typeof data.success !== "boolean")
-    errors.push("success must be a boolean");
-
-  return errors.length ? { valid: false, errors } : { valid: true };
-}
-
-function validateWorkerPerfBody(body: unknown): {
-  valid: boolean;
-  errors?: string[];
-} {
-  if (!body || typeof body !== "object")
-    return { valid: false, errors: ["body must be an object"] };
-  const data = body as Record<string, unknown>;
-  const errors: string[] = [];
-
-  if (!data.data || typeof data.data !== "object") {
-    errors.push("data must be an object");
-  } else {
-    const d = data.data as Record<string, unknown>;
-    if (typeof d.worker !== "string") errors.push("worker must be a string");
-    if (typeof d.requests !== "number")
-      errors.push("requests must be a number");
-    if (typeof d.errors !== "number") errors.push("errors must be a number");
-    if (typeof d.duration !== "number")
-      errors.push("duration must be a number");
-  }
-
-  return errors.length ? { valid: false, errors } : { valid: true };
-}
-
-function validateSignalBody(body: unknown): {
-  valid: boolean;
-  errors?: string[];
-} {
-  if (!body || typeof body !== "object")
-    return { valid: false, errors: ["body must be an object"] };
-  const data = body as Record<string, unknown>;
-  const errors: string[] = [];
-
-  if (!data.data || typeof data.data !== "object") {
-    errors.push("data must be an object");
-  } else {
-    const d = data.data as Record<string, unknown>;
-    if (typeof d.source !== "string") errors.push("source must be a string");
-    if (typeof d.type !== "string") errors.push("type must be a string");
-    if (typeof d.symbol !== "string") errors.push("symbol must be a string");
-    if (typeof d.confidence !== "number")
-      errors.push("confidence must be a number");
-  }
-
-  return errors.length ? { valid: false, errors } : { valid: true };
-}
-
-function validateNotificationBody(body: unknown): {
-  valid: boolean;
-  errors?: string[];
-} {
-  if (!body || typeof body !== "object")
-    return { valid: false, errors: ["body must be an object"] };
-  const data = body as Record<string, unknown>;
-  const errors: string[] = [];
-
-  if (!data.data || typeof data.data !== "object") {
-    errors.push("data must be an object");
-  } else {
-    const d = data.data as Record<string, unknown>;
-    if (typeof d.type !== "string") errors.push("type must be a string");
-    if (typeof d.target !== "string") errors.push("target must be a string");
-    if (typeof d.success !== "boolean")
-      errors.push("success must be a boolean");
-  }
-
-  return errors.length ? { valid: false, errors } : { valid: true };
-}
 
 router.get("/health", async (request, env, ctx) => {
   return healthCheck({ worker: "analytics-worker" });
 });
 
 router.post("/track/trade", async (request, env, ctx) => {
-  const body = (await request.json()) as Record<string, any>;
-  const validation = validateTradeBody(body);
-  if (!validation.valid) {
+  const body = await request.json();
+  const parsed = validateJson(TradeBodySchema, body);
+  if (!parsed.ok) {
     return createJsonResponse(
-      {
-        success: false,
-        error: "Validation failed",
-        details: validation.errors,
-      },
+      { success: false, error: "Validation failed", details: parsed.error },
       400
     );
   }
-  const { payload, result, latencyMs } = body;
+  const { payload, result, latencyMs } = parsed.value;
   await trackTrade(payload, result, latencyMs, env);
   return createJsonResponse({ success: true });
 });
 
 router.post("/track/api-call", async (request, env, ctx) => {
-  const body = (await request.json()) as Record<string, any>;
-  const validation = validateApiCallBody(body);
-  if (!validation.valid) {
+  const body = await request.json();
+  const parsed = validateJson(ApiCallBodySchema, body);
+  if (!parsed.ok) {
     return createJsonResponse(
-      {
-        success: false,
-        error: "Validation failed",
-        details: validation.errors,
-      },
+      { success: false, error: "Validation failed", details: parsed.error },
       400
     );
   }
-  const { worker: workerName, endpoint, latencyMs, success } = body;
+  const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
   await trackApiCall(workerName, endpoint, latencyMs, success, env);
   return createJsonResponse({ success: true });
 });
 
 router.post("/track/worker-perf", async (request, env, ctx) => {
-  const body = (await request.json()) as Record<string, any>;
-  const validation = validateWorkerPerfBody(body);
-  if (!validation.valid) {
+  const body = await request.json();
+  const parsed = validateJson(WorkerPerfBodySchema, body);
+  if (!parsed.ok) {
     return createJsonResponse(
-      {
-        success: false,
-        error: "Validation failed",
-        details: validation.errors,
-      },
+      { success: false, error: "Validation failed", details: parsed.error },
       400
     );
   }
-  const { data } = body;
+  const { data } = parsed.value;
   await trackWorkerPerf(data, env);
   return createJsonResponse({ success: true });
 });
 
 router.post("/track/signal", async (request, env, ctx) => {
-  const body = (await request.json()) as Record<string, any>;
-  const validation = validateSignalBody(body);
-  if (!validation.valid) {
+  const body = await request.json();
+  const parsed = validateJson(SignalBodySchema, body);
+  if (!parsed.ok) {
     return createJsonResponse(
-      {
-        success: false,
-        error: "Validation failed",
-        details: validation.errors,
-      },
+      { success: false, error: "Validation failed", details: parsed.error },
       400
     );
   }
-  const { data } = body;
+  const { data } = parsed.value;
   await trackSignal(data, env);
   return createJsonResponse({ success: true });
 });
 
 router.post("/track/notification", async (request, env, ctx) => {
-  const body = (await request.json()) as Record<string, any>;
-  const validation = validateNotificationBody(body);
-  if (!validation.valid) {
+  const body = await request.json();
+  const parsed = validateJson(NotificationBodySchema, body);
+  if (!parsed.ok) {
     return createJsonResponse(
-      {
-        success: false,
-        error: "Validation failed",
-        details: validation.errors,
-      },
+      { success: false, error: "Validation failed", details: parsed.error },
       400
     );
   }
-  const { data } = body;
+  const { data } = parsed.value;
   await trackNotification(data, env);
   return createJsonResponse({ success: true });
 });
