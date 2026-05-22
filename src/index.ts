@@ -15,6 +15,7 @@ import { buildQuery } from "./query-builder";
 import {
   createLogger,
   withRequestLog,
+  createInternalAuthMiddleware,
 } from "@jango-blockchained/hoox-shared/middleware";
 import {
   Errors,
@@ -90,80 +91,101 @@ const NotificationBodySchema = z
 const logger = createLogger({ service: "analytics-worker" });
 
 const router = createRouter<Env>();
+const requireAuth = createInternalAuthMiddleware();
 
 router.get("/health", async (request, env, ctx) => {
   return healthCheck({ worker: "analytics-worker" });
 });
 
-router.post("/track/trade", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(TradeBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { payload, result, latencyMs } = parsed.value;
-  await trackTrade(payload, result, latencyMs, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/trade",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(TradeBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { payload, result, latencyMs } = parsed.value;
+    await trackTrade(payload, result, latencyMs, env);
+    return createJsonResponse({ success: true });
+  },
+  [requireAuth]
+);
 
-router.post("/track/api-call", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(ApiCallBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
-  await trackApiCall(workerName, endpoint, latencyMs, success, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/api-call",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(ApiCallBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
+    await trackApiCall(workerName, endpoint, latencyMs, success, env);
+    return createJsonResponse({ success: true });
+  },
+  [requireAuth]
+);
 
-router.post("/track/worker-perf", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(WorkerPerfBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { data } = parsed.value;
-  await trackWorkerPerf(data, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/worker-perf",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(WorkerPerfBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { data } = parsed.value;
+    await trackWorkerPerf(data, env);
+    return createJsonResponse({ success: true });
+  },
+  [requireAuth]
+);
 
-router.post("/track/signal", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(SignalBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { data } = parsed.value;
-  await trackSignal(data, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/signal",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(SignalBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { data } = parsed.value;
+    await trackSignal(data, env);
+    return createJsonResponse({ success: true });
+  },
+  [requireAuth]
+);
 
-router.post("/track/notification", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(NotificationBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { data } = parsed.value;
-  await trackNotification(data, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/notification",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(NotificationBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { data } = parsed.value;
+    await trackNotification(data, env);
+    return createJsonResponse({ success: true });
+  },
+  [requireAuth]
+);
 
 // Service binding methods (called by other workers)
 export async function writeDataPoint(data: DataPoint, env: Env): Promise<void> {

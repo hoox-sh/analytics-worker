@@ -6,6 +6,7 @@ export interface Env extends Cloudflare.Env {
   ANALYTICS_ENGINE: AnalyticsEngineDataset;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
+  INTERNAL_KEY_BINDING?: string;
 }
 
 export interface DataPoint {

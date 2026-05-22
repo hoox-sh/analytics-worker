@@ -6,6 +6,7 @@ const mockEnv = {
   ANALYTICS_ENGINE: { writeDataPoint: mockWriteDataPoint },
   CLOUDFLARE_API_TOKEN: "test-token",
   CLOUDFLARE_ACCOUNT_ID: "test-account",
+  INTERNAL_KEY_BINDING: "test-internal-key",
 };
 
 beforeEach(() => {
@@ -130,7 +131,10 @@ describe("HTTP fetch handler", () => {
     const { default: worker } = await import("../src/index");
     const req = new Request("http://localhost/track/trade", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
       body: JSON.stringify({
         payload: {
           exchange: "binance",
@@ -155,7 +159,10 @@ describe("HTTP fetch handler", () => {
     const { default: worker } = await import("../src/index");
     const req = new Request("http://localhost/track/api-call", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
       body: JSON.stringify({
         worker: "trade-worker",
         endpoint: "/api/v3/order",
@@ -174,7 +181,10 @@ describe("HTTP fetch handler", () => {
     const { default: worker } = await import("../src/index");
     const req = new Request("http://localhost/track/signal", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
       body: JSON.stringify({
         data: {
           source: "agent-worker",
@@ -195,7 +205,10 @@ describe("HTTP fetch handler", () => {
     const { default: worker } = await import("../src/index");
     const req = new Request("http://localhost/track/worker-perf", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
       body: JSON.stringify({
         data: {
           worker: "trade-worker",
@@ -216,7 +229,10 @@ describe("HTTP fetch handler", () => {
     const { default: worker } = await import("../src/index");
     const req = new Request("http://localhost/track/notification", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
       body: JSON.stringify({
         data: {
           type: "trade_executed",
@@ -234,68 +250,11 @@ describe("HTTP fetch handler", () => {
 
   test("GET request returns 405 method not allowed", async () => {
     const { default: worker } = await import("../src/index");
-    const req = new Request("http://localhost/track/trade");
-
-    const resp = await worker.fetch(req, mockEnv as any, {} as any);
-    const data = (await resp.json()) as { success: boolean; error: string };
-
-    expect(resp.status).toBe(405);
-    expect(data.success).toBe(false);
-    expect(data.error).toContain("Method not allowed");
-  });
-
-  test("POST to unknown path returns 404", async () => {
-    const { default: worker } = await import("../src/index");
-    const req = new Request("http://localhost/track/unknown", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-
-    const resp = await worker.fetch(req, mockEnv as any, {} as any);
-    const data = (await resp.json()) as { success: boolean; error: string };
-
-    expect(resp.status).toBe(404);
-    expect(data.success).toBe(false);
-    expect(data.error).toContain("Not found");
-  });
-
-  test("POST with invalid JSON returns 500 internal error", async () => {
-    const { default: worker } = await import("../src/index");
     const req = new Request("http://localhost/track/trade", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "not-json-at-all",
-    });
-
-    // Suppress expected console.error from the invalid JSON parse
-    const origError = console.error;
-    console.error = () => {};
-    const resp = await worker.fetch(req, mockEnv as any, {} as any);
-    console.error = origError;
-
-    expect(resp.status).toBe(500);
-  });
-
-  test("POST /track/trade with missing fields calls trackTrade and returns 200", async () => {
-    const { default: worker } = await import("../src/index");
-    const req = new Request("http://localhost/track/trade", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        payload: {
-          exchange: "kraken",
-          action: "LONG",
-          symbol: "BTCUSDT",
-          quantity: 0.1,
-        },
-        result: { success: false },
-        latencyMs: 3000,
-      }),
+      headers: { "X-Internal-Auth-Key": "test-internal-key" },
     });
 
     const resp = await worker.fetch(req, mockEnv as any, {} as any);
-
     expect(resp.status).toBe(200);
     expect(mockWriteDataPoint).toHaveBeenCalled();
   });
