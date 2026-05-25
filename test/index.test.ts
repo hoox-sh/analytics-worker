@@ -255,8 +255,8 @@ describe("HTTP fetch handler", () => {
     });
 
     const resp = await worker.fetch(req, mockEnv as any, {} as any);
-    expect(resp.status).toBe(200);
-    expect(mockWriteDataPoint).toHaveBeenCalled();
+    expect(resp.status).toBe(405);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
   });
 });
 
