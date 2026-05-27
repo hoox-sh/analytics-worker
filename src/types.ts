@@ -2,7 +2,6 @@
 import type { AnalyticsEngineDataset } from "@cloudflare/workers-types";
 
 export interface Env {
-  [key: string]: unknown;
   ANALYTICS_ENGINE: AnalyticsEngineDataset;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
