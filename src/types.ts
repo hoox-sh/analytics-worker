@@ -1,7 +1,7 @@
 // workers/analytics-worker/src/types.ts
 import type { AnalyticsEngineDataset } from "@cloudflare/workers-types";
 
-export interface Env extends Cloudflare.Env {
+export interface Env {
   [key: string]: unknown;
   ANALYTICS_ENGINE: AnalyticsEngineDataset;
   CLOUDFLARE_API_TOKEN?: string;

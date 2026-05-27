@@ -1,12 +1,11 @@
 // workers/analytics-worker/src/index.ts
-import type { ExecutionContext } from "@cloudflare/workers-types";
+
 import type {
   Env,
   DataPoint,
   TradePayload,
   TradeResult,
   WorkerPerfData,
-  ApiCallData,
   SignalData,
   NotificationData,
 } from "./types";
@@ -109,7 +108,7 @@ router.post(
       );
     }
     const { payload, result, latencyMs } = parsed.value;
-    await trackTrade(payload, result, latencyMs, env);
+    await trackTrade(payload, result, latencyMs ?? 0, env);
     return createJsonResponse({ success: true });
   },
   [requireAuth]
