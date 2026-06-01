@@ -5,7 +5,6 @@ export interface Env {
   ANALYTICS_ENGINE: AnalyticsEngineDataset;
   CLOUDFLARE_API_TOKEN?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
-  INTERNAL_KEY_BINDING?: string;
 }
 
 export interface DataPoint {
@@ -33,13 +32,6 @@ export interface WorkerPerfData {
   requests: number;
   errors: number;
   duration: number;
-}
-
-export interface ApiCallData {
-  worker: string;
-  endpoint: string;
-  latency: number;
-  success: boolean;
 }
 
 export interface SignalData {

@@ -14,7 +14,6 @@ import { buildQuery } from "./query-builder";
 import {
   createLogger,
   withRequestLog,
-  createInternalAuthMiddleware,
 } from "@jango-blockchained/hoox-shared/middleware";
 import {
   Errors,
@@ -90,104 +89,83 @@ const NotificationBodySchema = z
 const logger = createLogger({ service: "analytics-worker" });
 
 const router = createRouter<Env>();
-const requireAuth = createInternalAuthMiddleware();
 
 router.get("/health", async (request, env, ctx) => {
   return healthCheck({ worker: "analytics-worker" });
 });
 
-router.post(
-  "/track/trade",
-  async (request, env, ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(TradeBodySchema, body);
-    if (!parsed.ok) {
-      return createJsonResponse(
-        { success: false, error: "Validation failed", details: parsed.error },
-        400
-      );
-    }
-    const { payload, result, latencyMs } = parsed.value;
-    await trackTrade(payload, result, latencyMs ?? 0, env);
-    return createJsonResponse({ success: true });
-  },
-  [requireAuth]
-);
+router.post("/track/trade", async (request, env, ctx) => {
+  const body = await request.json();
+  const parsed = validateJson(TradeBodySchema, body);
+  if (!parsed.ok) {
+    return createJsonResponse(
+      { success: false, error: "Validation failed", details: parsed.error },
+      400
+    );
+  }
+  const { payload, result, latencyMs } = parsed.value;
+  await trackTrade(payload, result, latencyMs ?? 0, env);
+  return createJsonResponse({ success: true });
+});
 
-router.post(
-  "/track/api-call",
-  async (request, env, ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(ApiCallBodySchema, body);
-    if (!parsed.ok) {
-      return createJsonResponse(
-        { success: false, error: "Validation failed", details: parsed.error },
-        400
-      );
-    }
-    const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
-    await trackApiCall(workerName, endpoint, latencyMs, success, env);
-    return createJsonResponse({ success: true });
-  },
-  [requireAuth]
-);
+router.post("/track/api-call", async (request, env, ctx) => {
+  const body = await request.json();
+  const parsed = validateJson(ApiCallBodySchema, body);
+  if (!parsed.ok) {
+    return createJsonResponse(
+      { success: false, error: "Validation failed", details: parsed.error },
+      400
+    );
+  }
+  const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
+  await trackApiCall(workerName, endpoint, latencyMs, success, env);
+  return createJsonResponse({ success: true });
+});
 
-router.post(
-  "/track/worker-perf",
-  async (request, env, ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(WorkerPerfBodySchema, body);
-    if (!parsed.ok) {
-      return createJsonResponse(
-        { success: false, error: "Validation failed", details: parsed.error },
-        400
-      );
-    }
-    const { data } = parsed.value;
-    await trackWorkerPerf(data, env);
-    return createJsonResponse({ success: true });
-  },
-  [requireAuth]
-);
+router.post("/track/worker-perf", async (request, env, ctx) => {
+  const body = await request.json();
+  const parsed = validateJson(WorkerPerfBodySchema, body);
+  if (!parsed.ok) {
+    return createJsonResponse(
+      { success: false, error: "Validation failed", details: parsed.error },
+      400
+    );
+  }
+  const { data } = parsed.value;
+  await trackWorkerPerf(data, env);
+  return createJsonResponse({ success: true });
+});
 
-router.post(
-  "/track/signal",
-  async (request, env, ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(SignalBodySchema, body);
-    if (!parsed.ok) {
-      return createJsonResponse(
-        { success: false, error: "Validation failed", details: parsed.error },
-        400
-      );
-    }
-    const { data } = parsed.value;
-    await trackSignal(data, env);
-    return createJsonResponse({ success: true });
-  },
-  [requireAuth]
-);
+router.post("/track/signal", async (request, env, ctx) => {
+  const body = await request.json();
+  const parsed = validateJson(SignalBodySchema, body);
+  if (!parsed.ok) {
+    return createJsonResponse(
+      { success: false, error: "Validation failed", details: parsed.error },
+      400
+    );
+  }
+  const { data } = parsed.value;
+  await trackSignal(data, env);
+  return createJsonResponse({ success: true });
+});
 
-router.post(
-  "/track/notification",
-  async (request, env, ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(NotificationBodySchema, body);
-    if (!parsed.ok) {
-      return createJsonResponse(
-        { success: false, error: "Validation failed", details: parsed.error },
-        400
-      );
-    }
-    const { data } = parsed.value;
-    await trackNotification(data, env);
-    return createJsonResponse({ success: true });
-  },
-  [requireAuth]
-);
+router.post("/track/notification", async (request, env, ctx) => {
+  const body = await request.json();
+  const parsed = validateJson(NotificationBodySchema, body);
+  if (!parsed.ok) {
+    return createJsonResponse(
+      { success: false, error: "Validation failed", details: parsed.error },
+      400
+    );
+  }
+  const { data } = parsed.value;
+  await trackNotification(data, env);
+  return createJsonResponse({ success: true });
+});
 
 // Service binding methods (called by other workers)
-export async function writeDataPoint(data: DataPoint, env: Env): Promise<void> {
+export function writeDataPoint(data: DataPoint, env: Env): void {
   env.ANALYTICS_ENGINE.writeDataPoint({
     blobs: data.blobs,
     doubles: data.doubles,
@@ -195,23 +173,23 @@ export async function writeDataPoint(data: DataPoint, env: Env): Promise<void> {
   });
 }
 
-export async function trackTrade(
+export function trackTrade(
   payload: TradePayload,
   result: TradeResult,
   latencyMs: number,
   env: Env
-): Promise<void> {
+): void {
   const dataPoint = buildDataPoint.trade(payload, result, latencyMs);
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export async function trackApiCall(
+export function trackApiCall(
   worker: string,
   endpoint: string,
   latencyMs: number,
   success: boolean,
   env: Env
-): Promise<void> {
+): void {
   const dataPoint = buildDataPoint.apiCall(
     worker,
     endpoint,
@@ -221,23 +199,17 @@ export async function trackApiCall(
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export async function trackWorkerPerf(
-  data: WorkerPerfData,
-  env: Env
-): Promise<void> {
+export function trackWorkerPerf(data: WorkerPerfData, env: Env): void {
   const dataPoint = buildDataPoint.workerPerf(data);
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export async function trackSignal(data: SignalData, env: Env): Promise<void> {
+export function trackSignal(data: SignalData, env: Env): void {
   const dataPoint = buildDataPoint.signal(data);
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export async function trackNotification(
-  data: NotificationData,
-  env: Env
-): Promise<void> {
+export function trackNotification(data: NotificationData, env: Env): void {
   const dataPoint = buildDataPoint.notification(data);
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
@@ -325,8 +297,13 @@ async function executeQuery(sql: string, env: Env): Promise<any> {
 
 export default {
   fetch: withRequestLog(
-    (request: Request, env: Env, ctx: ExecutionContext) => {
-      return router.handle(request, env, ctx);
+    async (request: Request, env: Env, ctx: ExecutionContext) => {
+      try {
+        return await router.handle(request, env, ctx);
+      } catch (err) {
+        logger.error("Unhandled exception", { error: toError(err) });
+        return Errors.internal("An unexpected error occurred");
+      }
     },
     { service: "analytics-worker", module: "router" }
   ),

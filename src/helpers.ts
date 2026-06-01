@@ -2,7 +2,6 @@ import type {
   DataPoint,
   TradePayload,
   TradeResult,
-  ApiCallData,
   WorkerPerfData,
   SignalData,
   NotificationData,
@@ -24,7 +23,7 @@ export const buildDataPoint = {
         payload.exchange,
         payload.symbol,
       ],
-      doubles: [payload.quantity, payload.price || 0, latencyMs],
+      doubles: [payload.quantity, payload.price ?? 0, latencyMs],
       indexes: [payload.requestId || crypto.randomUUID()],
     };
   },

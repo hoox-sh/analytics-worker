@@ -258,6 +258,107 @@ describe("HTTP fetch handler", () => {
     expect(resp.status).toBe(405);
     expect(mockWriteDataPoint).not.toHaveBeenCalled();
   });
+
+  test("GET /health returns 200", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/health");
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(200);
+    const data = (await resp.json()) as Record<string, unknown>;
+    expect(data.success).toBe(true);
+    const result = data.result as Record<string, unknown>;
+    expect(result.status).toBe("ok");
+    expect(result.service).toBe("analytics-worker");
+  });
+
+  test("POST /track/trade returns 400 for invalid payload", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload: { exchange: "binance" } }),
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    const data = (await resp.json()) as { success: boolean };
+    expect(data.success).toBe(false);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("POST /track/api-call returns 400 for missing fields", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/api-call", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("POST /track/signal returns 400 for invalid confidence", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/signal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: {
+          source: "test",
+          type: "BUY",
+          symbol: "BTC",
+          confidence: "high",
+        },
+      }),
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("POST /track/worker-perf returns 400 for missing data fields", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/worker-perf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: { worker: "test" } }),
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("POST /track/notification returns 400 for missing success field", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/notification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: { type: "alert", target: "telegram" } }),
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("POST with invalid JSON body returns 500 (caught by top-level error boundary)", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not-json-at-all",
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(500);
+    const data = (await resp.json()) as Record<string, unknown>;
+    expect(data.success).toBe(false);
+  });
 });
 
 describe("writeDataPoint", () => {
@@ -417,5 +518,65 @@ describe("query functions", () => {
     const result = await getSignalOutcomes("2024-01-01", mockEnv as any);
 
     expect(result).toEqual(mockJson);
+  });
+
+  test("query functions throw when CLOUDFLARE_API_TOKEN is missing", async () => {
+    const {
+      getTradesByExchange,
+      getTradeSuccessRate,
+      getWorkerPerformance,
+      getApiCallStats,
+      getSignalOutcomes,
+    } = await import("../src/index");
+    const noTokenEnv = {
+      ANALYTICS_ENGINE: { writeDataPoint: mock(() => {}) },
+      CLOUDFLARE_ACCOUNT_ID: "test-account",
+    };
+
+    await expect(
+      getTradesByExchange("binance", 10, noTokenEnv as any)
+    ).rejects.toThrow("CLOUDFLARE_API_TOKEN not configured");
+    await expect(
+      getTradeSuccessRate("2024-01-01", noTokenEnv as any)
+    ).rejects.toThrow("CLOUDFLARE_API_TOKEN not configured");
+    await expect(
+      getWorkerPerformance("trade-worker", "2024-01-01", noTokenEnv as any)
+    ).rejects.toThrow("CLOUDFLARE_API_TOKEN not configured");
+    await expect(getApiCallStats("binance", noTokenEnv as any)).rejects.toThrow(
+      "CLOUDFLARE_API_TOKEN not configured"
+    );
+    await expect(
+      getSignalOutcomes("2024-01-01", noTokenEnv as any)
+    ).rejects.toThrow("CLOUDFLARE_API_TOKEN not configured");
+  });
+
+  test("query functions throw on non-ok response", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.resolve(new Response("Not Found", { status: 404 }))
+    );
+
+    const {
+      getTradesByExchange,
+      getTradeSuccessRate,
+      getWorkerPerformance,
+      getApiCallStats,
+      getSignalOutcomes,
+    } = await import("../src/index");
+
+    await expect(
+      getTradesByExchange("binance", 10, mockEnv as any)
+    ).rejects.toThrow("Query failed: 404");
+    await expect(
+      getTradeSuccessRate("2024-01-01", mockEnv as any)
+    ).rejects.toThrow("Query failed: 404");
+    await expect(
+      getWorkerPerformance("trade-worker", "2024-01-01", mockEnv as any)
+    ).rejects.toThrow("Query failed: 404");
+    await expect(getApiCallStats("binance", mockEnv as any)).rejects.toThrow(
+      "Query failed: 404"
+    );
+    await expect(
+      getSignalOutcomes("2024-01-01", mockEnv as any)
+    ).rejects.toThrow("Query failed: 404");
   });
 });
