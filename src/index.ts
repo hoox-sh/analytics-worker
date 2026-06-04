@@ -281,7 +281,7 @@ async function executeQuery(sql: string, env: Env): Promise<any> {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type": "text/plain",
       },
       body: sql,
     }
