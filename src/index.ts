@@ -10,10 +10,10 @@ import type {
   NotificationData,
 } from "./types";
 import { buildDataPoint } from "./helpers";
-import { buildQuery } from "./query-builder";
 import {
   createLogger,
   withRequestLog,
+  createInternalAuthMiddleware,
 } from "@jango-blockchained/hoox-shared/middleware";
 import {
   Errors,
@@ -90,79 +90,102 @@ const logger = createLogger({ service: "analytics-worker" });
 
 const router = createRouter<Env>();
 
+// Internal auth middleware for all tracking endpoints
+const internalAuth = createInternalAuthMiddleware();
+
 router.get("/health", async (request, env, ctx) => {
   return healthCheck({ worker: "analytics-worker" });
 });
 
-router.post("/track/trade", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(TradeBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { payload, result, latencyMs } = parsed.value;
-  await trackTrade(payload, result, latencyMs ?? 0, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/trade",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(TradeBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { payload, result, latencyMs } = parsed.value;
+    await trackTrade(payload, result, latencyMs ?? 0, env);
+    return createJsonResponse({ success: true });
+  },
+  [internalAuth]
+);
 
-router.post("/track/api-call", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(ApiCallBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
-  await trackApiCall(workerName, endpoint, latencyMs, success, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/api-call",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(ApiCallBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
+    await trackApiCall(workerName, endpoint, latencyMs, success, env);
+    return createJsonResponse({ success: true });
+  },
+  [internalAuth]
+);
 
-router.post("/track/worker-perf", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(WorkerPerfBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { data } = parsed.value;
-  await trackWorkerPerf(data, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/worker-perf",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(WorkerPerfBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { data } = parsed.value;
+    await trackWorkerPerf(data, env);
+    return createJsonResponse({ success: true });
+  },
+  [internalAuth]
+);
 
-router.post("/track/signal", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(SignalBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { data } = parsed.value;
-  await trackSignal(data, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/signal",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(SignalBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { data } = parsed.value;
+    await trackSignal(data, env);
+    return createJsonResponse({ success: true });
+  },
+  [internalAuth]
+);
 
-router.post("/track/notification", async (request, env, ctx) => {
-  const body = await request.json();
-  const parsed = validateJson(NotificationBodySchema, body);
-  if (!parsed.ok) {
-    return createJsonResponse(
-      { success: false, error: "Validation failed", details: parsed.error },
-      400
-    );
-  }
-  const { data } = parsed.value;
-  await trackNotification(data, env);
-  return createJsonResponse({ success: true });
-});
+router.post(
+  "/track/notification",
+  async (request, env, ctx) => {
+    const body = await request.json();
+    const parsed = validateJson(NotificationBodySchema, body);
+    if (!parsed.ok) {
+      return createJsonResponse(
+        { success: false, error: "Validation failed", details: parsed.error },
+        400
+      );
+    }
+    const { data } = parsed.value;
+    await trackNotification(data, env);
+    return createJsonResponse({ success: true });
+  },
+  [internalAuth]
+);
 
 // Service binding methods (called by other workers)
 export function writeDataPoint(data: DataPoint, env: Env): void {
@@ -212,87 +235,6 @@ export function trackSignal(data: SignalData, env: Env): void {
 export function trackNotification(data: NotificationData, env: Env): void {
   const dataPoint = buildDataPoint.notification(data);
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
-}
-
-// Query methods (make HTTP calls to Cloudflare SQL API)
-export async function getTradeMetrics(
-  timeRange: { start: string; end: string },
-  env: Env
-): Promise<any> {
-  const sql = buildQuery.getTradeMetrics(timeRange);
-  return await executeQuery(sql, env);
-}
-
-export async function getTradesByExchange(
-  exchange: string,
-  limit: number = 100,
-  env: Env
-): Promise<any> {
-  const sql = buildQuery.getTradesByExchange(exchange, limit);
-  return await executeQuery(sql, env);
-}
-
-export async function getTradeSuccessRate(
-  timeRange: string | undefined,
-  env: Env
-): Promise<any> {
-  const sql = buildQuery.getTradeSuccessRate(timeRange);
-  return await executeQuery(sql, env);
-}
-
-export async function getWorkerPerformance(
-  worker: string,
-  timeRange: string | undefined,
-  env: Env
-): Promise<any> {
-  const sql = buildQuery.getWorkerPerformance(worker, timeRange);
-  return await executeQuery(sql, env);
-}
-
-export async function getApiCallStats(
-  exchange: string | undefined,
-  env: Env
-): Promise<any> {
-  const sql = buildQuery.getApiCallStats(exchange);
-  return await executeQuery(sql, env);
-}
-
-export async function getSignalOutcomes(
-  timeRange: string | undefined,
-  env: Env
-): Promise<any> {
-  const sql = buildQuery.getSignalOutcomes(timeRange);
-  return await executeQuery(sql, env);
-}
-
-// Helper: Execute SQL query via Cloudflare API
-async function executeQuery(sql: string, env: Env): Promise<any> {
-  if (!env.CLOUDFLARE_API_TOKEN) {
-    throw new Error("CLOUDFLARE_API_TOKEN not configured");
-  }
-
-  if (!env.CLOUDFLARE_ACCOUNT_ID) {
-    throw new Error("CLOUDFLARE_ACCOUNT_ID not configured");
-  }
-
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/analytics_engine/sql`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
-        "Content-Type": "text/plain",
-      },
-      body: sql,
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Query failed: ${response.status} ${errorText}`);
-  }
-
-  return await response.json();
 }
 
 export default {

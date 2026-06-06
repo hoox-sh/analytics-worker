@@ -6,20 +6,18 @@ describe("Env interface", () => {
   test("accepts valid env structure", () => {
     const env: Env = {
       ANALYTICS_ENGINE: {} as any,
-      CLOUDFLARE_API_TOKEN: "test-token",
-      CLOUDFLARE_ACCOUNT_ID: "test-account",
+      INTERNAL_KEY_BINDING: "test-internal-key",
     };
     expect(typeof env.ANALYTICS_ENGINE).toBe("object");
-    expect(env.CLOUDFLARE_API_TOKEN).toBe("test-token");
-    expect(env.CLOUDFLARE_ACCOUNT_ID).toBe("test-account");
+    expect(env.INTERNAL_KEY_BINDING).toBe("test-internal-key");
   });
 
-  test("optional fields can be omitted", () => {
+  test("INTERNAL_KEY_BINDING is required", () => {
     const env: Env = {
       ANALYTICS_ENGINE: {} as any,
+      INTERNAL_KEY_BINDING: "some-key",
     };
-    expect(env.CLOUDFLARE_API_TOKEN).toBeUndefined();
-    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(env.INTERNAL_KEY_BINDING).toBe("some-key");
   });
 });
 
