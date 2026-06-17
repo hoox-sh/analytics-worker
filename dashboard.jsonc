@@ -14,7 +14,7 @@
       },
       "options": {
         "retention_days": [7, 30, 60, 90],
-        "sample_rate": [0.1, 0.25, 0.5, 0.75, 1.0]
+        "sample_rate": [0.1, 0.25, 0.5, 0.75, 1.0],
       },
       "descriptions": {
         "enabled": "Master toggle for analytics collection. If false, no data points are written.",
