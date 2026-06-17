@@ -20,7 +20,10 @@ import {
   createJsonResponse,
   toError,
 } from "@jango-blockchained/hoox-shared/errors";
-import { createRouter } from "@jango-blockchained/hoox-shared/router";
+import {
+  createRouter,
+  type MiddlewareHandler,
+} from "@jango-blockchained/hoox-shared/router";
 import { healthCheck } from "@jango-blockchained/hoox-shared/health";
 import { validateJson } from "@jango-blockchained/hoox-shared/middleware";
 import { z } from "zod";
@@ -90,16 +93,20 @@ const logger = createLogger({ service: "analytics-worker" });
 
 const router = createRouter<Env>();
 
-// Internal auth middleware for all tracking endpoints
-const internalAuth = createInternalAuthMiddleware();
+// Internal auth middleware for all tracking endpoints.
+// Cast: createInternalAuthMiddleware returns MiddlewareHandler<InternalAuthEnv>
+// but our router is typed for MiddlewareHandler<Env>. The middleware only
+// reads `INTERNAL_KEY_BINDING` which is present on both types.
+const internalAuth =
+  createInternalAuthMiddleware() as unknown as MiddlewareHandler<Env>;
 
-router.get("/health", async (request, env, ctx) => {
+router.get("/health", async (_request, _env, _ctx) => {
   return healthCheck({ worker: "analytics-worker" });
 });
 
 router.post(
   "/track/trade",
-  async (request, env, ctx) => {
+  async (request, env, _ctx) => {
     const body = await request.json();
     const parsed = validateJson(TradeBodySchema, body);
     if (!parsed.ok) {
@@ -117,7 +124,7 @@ router.post(
 
 router.post(
   "/track/api-call",
-  async (request, env, ctx) => {
+  async (request, env, _ctx) => {
     const body = await request.json();
     const parsed = validateJson(ApiCallBodySchema, body);
     if (!parsed.ok) {
@@ -135,7 +142,7 @@ router.post(
 
 router.post(
   "/track/worker-perf",
-  async (request, env, ctx) => {
+  async (request, env, _ctx) => {
     const body = await request.json();
     const parsed = validateJson(WorkerPerfBodySchema, body);
     if (!parsed.ok) {
@@ -153,7 +160,7 @@ router.post(
 
 router.post(
   "/track/signal",
-  async (request, env, ctx) => {
+  async (request, env, _ctx) => {
     const body = await request.json();
     const parsed = validateJson(SignalBodySchema, body);
     if (!parsed.ok) {
@@ -171,7 +178,7 @@ router.post(
 
 router.post(
   "/track/notification",
-  async (request, env, ctx) => {
+  async (request, env, _ctx) => {
     const body = await request.json();
     const parsed = validateJson(NotificationBodySchema, body);
     if (!parsed.ok) {
