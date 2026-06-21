@@ -213,7 +213,10 @@ export function trackTrade(
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export async function trackApiCall(env: Env, body: ApiCallBody): Promise<void> {
+export async function trackApiCall(
+  env: Env,
+  body: z.infer<typeof ApiCallBodySchema>
+): Promise<void> {
   const dataPoint = buildDataPoint.apiCall(
     body.worker,
     body.endpoint,
