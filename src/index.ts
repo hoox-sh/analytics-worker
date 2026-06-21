@@ -54,6 +54,7 @@ const ApiCallBodySchema = z
     endpoint: z.string(),
     latencyMs: z.number(),
     success: z.boolean(),
+    indexes: z.array(z.string()).optional(),
   })
   .strict();
 
@@ -133,8 +134,7 @@ router.post(
         400
       );
     }
-    const { worker: workerName, endpoint, latencyMs, success } = parsed.value;
-    await trackApiCall(workerName, endpoint, latencyMs, success, env);
+    await trackApiCall(env, parsed.value);
     return createJsonResponse({ success: true });
   },
   [internalAuth]
@@ -213,19 +213,16 @@ export function trackTrade(
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export function trackApiCall(
-  worker: string,
-  endpoint: string,
-  latencyMs: number,
-  success: boolean,
-  env: Env
-): void {
+export async function trackApiCall(env: Env, body: ApiCallBody): Promise<void> {
   const dataPoint = buildDataPoint.apiCall(
-    worker,
-    endpoint,
-    latencyMs,
-    success
+    body.worker,
+    body.endpoint,
+    body.latencyMs,
+    body.success
   );
+  if (body.indexes?.length) {
+    dataPoint.indexes = [...dataPoint.indexes, ...body.indexes];
+  }
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 

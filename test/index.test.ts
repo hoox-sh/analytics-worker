@@ -1,4 +1,6 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
+import type { Env } from "../src/index";
+import { trackApiCall } from "../src/index";
 
 // Mock environment shared across tests
 const mockWriteDataPoint = mock(() => {});
@@ -44,13 +46,12 @@ describe("trackApiCall", () => {
   test("writes an api-call data point to ANALYTICS_ENGINE", async () => {
     const { trackApiCall } = await import("../src/index");
 
-    await trackApiCall(
-      "trade-worker",
-      "/api/v3/order",
-      250,
-      true,
-      mockEnv as any
-    );
+    await trackApiCall(mockEnv as any, {
+      worker: "trade-worker",
+      endpoint: "/api/v3/order",
+      latencyMs: 250,
+      success: true,
+    });
 
     expect(mockWriteDataPoint).toHaveBeenCalledTimes(1);
     expect(mockWriteDataPoint).toHaveBeenCalledWith(
@@ -393,5 +394,55 @@ describe("writeDataPoint", () => {
       doubles: [1, 2, 3],
       indexes: ["idx1"],
     });
+  });
+});
+
+describe("trackApiCall indexes", () => {
+  test("appends custom indexes to the data point", async () => {
+    const writes: Array<unknown> = [];
+    const env = {
+      ANALYTICS_ENGINE: {
+        writeDataPoint: (dp: unknown) => {
+          writes.push(dp);
+        },
+      },
+    } as unknown as Env;
+
+    const body = {
+      worker: "hoox",
+      endpoint: "/webhook",
+      latencyMs: 42,
+      success: true,
+      indexes: ["probe-abc-123", "extra-tag"],
+    };
+
+    await trackApiCall(env, body);
+
+    expect(writes).toHaveLength(1);
+    const dp = writes[0] as { indexes: string[] };
+    expect(dp.indexes).toContain("probe-abc-123");
+    expect(dp.indexes).toContain("extra-tag");
+    expect(dp.indexes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  test("leaves indexes untouched when body has no indexes field", async () => {
+    const writes: Array<unknown> = [];
+    const env = {
+      ANALYTICS_ENGINE: {
+        writeDataPoint: (dp: unknown) => {
+          writes.push(dp);
+        },
+      },
+    } as unknown as Env;
+
+    await trackApiCall(env, {
+      worker: "hoox",
+      endpoint: "/webhook",
+      latencyMs: 42,
+      success: true,
+    });
+
+    const dp = writes[0] as { indexes: string[] };
+    expect(dp.indexes).toHaveLength(1);
   });
 });
