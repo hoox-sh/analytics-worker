@@ -1,8 +1,12 @@
 // workers/analytics-worker/src/types.ts
-import type { AnalyticsEngineDataset } from "@cloudflare/workers-types";
+import type {
+  AnalyticsEngineDataset,
+  KVNamespace,
+} from "@cloudflare/workers-types";
 
 export interface Env {
   ANALYTICS_ENGINE: AnalyticsEngineDataset;
+  CONFIG_KV: KVNamespace;
   INTERNAL_KEY_BINDING: string;
 }
 
