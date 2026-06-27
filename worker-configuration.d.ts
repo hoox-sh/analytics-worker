@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20260521.1 2026-04-17 nodejs_compat
 interface __BaseEnv_Env {
   ANALYTICS_ENGINE: AnalyticsEngineDataset;
+  CONFIG_KV: KVNamespace;
   CLOUDFLARE_ACCOUNT_ID: "debc6545e63bea36be059cbc82d80ec8";
   CLOUDFLARE_API_TOKEN: string;
 }
