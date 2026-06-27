@@ -55,6 +55,14 @@
         "cloudflare_api_token": "Cloudflare API Token with Analytics:Read permissions. Run: hoox secrets update-cf analytics-worker cloudflare_api_token",
         "cloudflare_account_id": "Your Cloudflare Account ID. Run: hoox secrets update-cf analytics-worker cloudflare_account_id",
       },
+      "secrets": {
+        "cloudflare_api_token": true,
+        "cloudflare_account_id": true,
+      },
+      "secret_commands": {
+        "cloudflare_api_token": "hoox secrets update-cf cloudflare_api_token analytics-worker",
+        "cloudflare_account_id": "hoox secrets update-cf cloudflare_account_id analytics-worker",
+      },
     },
     "endpoints": {
       "title": "Available Endpoints",
