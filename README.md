@@ -1,25 +1,58 @@
-# @hoox/analytics-worker
+# HOOX · Analytics Worker
+
+**The observability plane — every operational signal in the mesh converges here. Latency percentiles, trade success rates, error budgets, in continuous time-series.**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Runtime](https://img.shields.io/badge/Runtime-Bun-black?logo=bun)](https://bun.sh) [![Platform](https://img.shields.io/badge/Platform-Cloudflare%C2%AE%20Workers-orange?logo=cloudflare)](https://workers.cloudflare.com/) [![License](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
 
-Collects metrics and observability data across all workers.
+**Part of the [HOOX](https://github.com/jango-blockchained/hoox) edge-trading mesh — a production-grade algorithmic trading framework on Cloudflare Workers.**  
+**Site:** [hoox.sh](https://hoox.sh) · **Docs:** [docs.hoox.sh](https://docs.hoox.sh) · **Paper:** [`hoox-arxiv-paper-core.pdf`](https://github.com/jango-blockchained/hoox/blob/main/papers/hoox-arxiv-paper-core.pdf)
 
-## For CLI Users
+---
 
-Use this worker indirectly when you run `hoox` commands:
+The analytics-worker is the central observability hub for the HOOX mesh — the single fan-in collector for all system telemetry. Six workers push structured events to its REST endpoints, which are written as time-series data points to Cloudflare Analytics Engine (`hoox-analytics` dataset). Each event type — trade execution, API call latency, worker performance heartbeat, signal ingestion, notification delivery — is validated against a Zod schema (`.strict()` mode rejects unknown fields) before being committed as a `DataPoint` with typed `blobs`, `doubles`, and `indexes`.
 
-- `hoox monitor status` — view aggregated worker health and metrics
+Query methods are exposed for the dashboard and the [`report-worker`](../report-worker): `getTradeMetrics`, `getTradesByExchange`, `getTradeSuccessRate`, `getWorkerPerformance`, `getApiCallStats`, `getSignalOutcomes`. Each builds parameterized SQL and executes against the Analytics Engine SQL API.
 
-→ [Monitor Trading Guide](../../docs/guides/monitor-trading.md) · [CLI Reference](../../docs/reference/cli-commands.md)
+### Fan-In Architecture
 
-## For Operators
+```
+hoox ─────────┐
+trade-worker ─┤
+agent-worker ─┼──► analytics-worker ──► Analytics Engine
+email-worker ─┤        │               (hoox-analytics)
+web3-wallet ──┘        │
+                       │
+                       ├──► D1 (via d1-worker, for queries)
+                       └──► SQL API (time-series queries)
+```
 
-This worker provides performance analytics and reporting. It queries D1 for trade history, calculates win rate, Sharpe ratio, drawdown, and other metrics, and serves REST endpoints for the dashboard. Reports can be exported as CSV or stored in R2 as PDFs via the report worker.
+### Event Types
 
-→ [Operator Docs](../../docs/devops/workers/analytics-worker.md)
+| Endpoint              | Zod Schema           | Blobs                    | Doubles                    | Description          |
+| --------------------- | -------------------- | ------------------------ | -------------------------- | -------------------- |
+| `/track/trade`        | `TradeBodySchema`    | exchange, symbol, action | qty, latencyMs             | Per-trade execution  |
+| `/track/api-call`     | `ApiCallBodySchema`  | worker, endpoint         | latencyMs, success         | Internal RPC latency |
+| `/track/worker-perf`  | `WorkerPerfSchema`   | worker                   | requests, errors, duration | Heartbeat metrics    |
+| `/track/signal`       | `SignalBodySchema`   | source, type, symbol     | confidence                 | Signal ingestion     |
+| `/track/notification` | `NotificationSchema` | type, target             | success                    | Delivery status      |
 
-## Development
+### Entry Points
+
+| Method | Path                  | Auth         | Schema                           |
+| ------ | --------------------- | ------------ | -------------------------------- |
+| `POST` | `/track/trade`        | Internal key | Zod-validated trade event        |
+| `POST` | `/track/api-call`     | Internal key | Zod-validated RPC event          |
+| `POST` | `/track/worker-perf`  | Internal key | Zod-validated perf event         |
+| `POST` | `/track/signal`       | Internal key | Zod-validated signal event       |
+| `POST` | `/track/notification` | Internal key | Zod-validated notification event |
+| `GET`  | `/health`             | None         | Liveness probe                   |
+
+### Development
 
 ```bash
 bun test workers/analytics-worker
 ```
+
+### License
+
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — part of the HOOX open-core mesh.
