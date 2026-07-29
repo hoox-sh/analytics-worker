@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // workers/analytics-worker/src/index.ts
 
 import type {
@@ -40,9 +45,13 @@ const TradeBodySchema = z
       symbol: z.string(),
       action: z.string(),
       quantity: z.number(),
+      price: z.number().optional(),
+      requestId: z.string().optional(),
+      test: z.boolean().optional(),
     }),
     result: z.object({
       success: z.boolean(),
+      error: z.string().optional(),
     }),
     latencyMs: z.number().optional(),
   })

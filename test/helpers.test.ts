@@ -1,7 +1,27 @@
+/**
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { buildDataPoint } from "../src/helpers";
 import { describe, test, expect } from "bun:test";
 
 describe("buildDataPoint", () => {
+  test("buildDataPoint.trade encodes test mode on exchange blob", () => {
+    const dp = buildDataPoint.trade(
+      {
+        exchange: "bybit",
+        action: "LONG",
+        symbol: "ETHUSDT",
+        quantity: 1,
+        test: true,
+      },
+      { success: true },
+      12
+    );
+    expect(dp.blobs[3]).toBe("bybit:test");
+  });
+
   test("buildDataPoint.trade creates correct data point", () => {
     const dp = buildDataPoint.trade(
       {

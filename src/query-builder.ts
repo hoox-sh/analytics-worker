@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // workers/analytics-worker/src/query-builder.ts
 //
 // REMOVED: Analytics Engine SQL query builder.

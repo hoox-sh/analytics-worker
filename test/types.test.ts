@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // workers/analytics-worker/test/types.test.ts
 import { describe, test, expect } from "bun:test";
 import type { Env, DataPoint } from "../src/types";

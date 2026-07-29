@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 import type { Env } from "../src/index";
 import { trackApiCall } from "../src/index";

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type {
   DataPoint,
   TradePayload,
@@ -20,7 +25,9 @@ export const buildDataPoint = {
         "trade",
         "trade-worker",
         result.success ? "success" : "failure",
-        payload.exchange,
+        // Encode mode in exchange label so AE queries can filter without
+        // a new blob index (index 5 would shift existing consumers).
+        payload.test ? `${payload.exchange}:test` : payload.exchange,
         payload.symbol,
       ],
       doubles: [payload.quantity, payload.price ?? 0, latencyMs],

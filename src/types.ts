@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // workers/analytics-worker/src/types.ts
 import type {
   AnalyticsEngineDataset,
@@ -23,6 +28,8 @@ export interface TradePayload {
   quantity: number;
   price?: number;
   requestId?: string;
+  /** When true, fill was placed on exchange testnet/sandbox. */
+  test?: boolean;
 }
 
 export interface TradeResult {
