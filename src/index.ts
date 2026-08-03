@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2026 HOOX · HOOX · jango-blockchained
+ * Copyright (c) 2026 HOOX · HOOX · jango-blockchained (hoox-sh)
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -19,18 +19,18 @@ import {
   createLogger,
   withRequestLog,
   createInternalAuthMiddleware,
-} from "@jango-blockchained/hoox-shared/middleware";
+} from "@hoox-sh/hoox-shared/middleware";
 import {
   Errors,
   createJsonResponse,
   toError,
-} from "@jango-blockchained/hoox-shared/errors";
+} from "@hoox-sh/hoox-shared/errors";
 import {
   createRouter,
   type MiddlewareHandler,
-} from "@jango-blockchained/hoox-shared/router";
-import { healthCheck } from "@jango-blockchained/hoox-shared/health";
-import { validateJson } from "@jango-blockchained/hoox-shared/middleware";
+} from "@hoox-sh/hoox-shared/router";
+import { healthCheck } from "@hoox-sh/hoox-shared/health";
+import { validateJson } from "@hoox-sh/hoox-shared/middleware";
 import { z } from "zod";
 
 // Request, Response, and fetch are available globally in Cloudflare Workers runtime
