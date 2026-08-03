@@ -1,7 +1,7 @@
 {
   "name": "analytics-worker",
   "version": "1.0.0",
-  "description": "Analytics collection and querying for hoox trading system",
+  "description": "HOOX observability worker: Cloudflare Analytics Engine fan-in for trades, signals, API latency, worker heartbeats, and notification delivery.",
   "license": "Apache-2.0",
   "main": "src/index.js",
   "type": "module",
@@ -23,5 +23,9 @@
     "typescript": "^6.0.3",
     "wrangler": "^4.95.0"
   },
-  "author": "jango-blockchained (hoox-sh)"
+  "author": "jango-blockchained (hoox-sh)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoox-sh/analytics-worker.git"
+  }
 }
