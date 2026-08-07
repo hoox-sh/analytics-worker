@@ -9,9 +9,9 @@
 
 ---
 
-The analytics-worker is the central observability hub for the HOOX mesh — the single fan-in collector for all system telemetry. Six workers push structured events to its REST endpoints, which are written as time-series data points to Cloudflare Analytics Engine (`hoox-analytics` dataset). Each event type — trade execution, API call latency, worker performance heartbeat, signal ingestion, notification delivery — is validated against a Zod schema (`.strict()` mode rejects unknown fields) before being committed as a `DataPoint` with typed `blobs`, `doubles`, and `indexes`.
+The analytics-worker is the central observability hub for the HOOX mesh — the single fan-in collector for all system telemetry. Peer workers push structured events to its REST endpoints, which are written as time-series data points to Cloudflare Analytics Engine (`hoox-analytics` dataset). Each event type — trade execution, API call latency, worker performance heartbeat, signal ingestion, notification delivery — is validated against a Zod schema (`.strict()` mode rejects unknown fields; finite numbers; max string lengths) before being committed as a `DataPoint` with typed `blobs`, `doubles`, and `indexes`. Invalid or oversized payloads are **dropped safely** (`400`, no `writeDataPoint`).
 
-Query methods are exposed for the dashboard and the [`report-worker`](https://github.com/hoox-sh/report-worker): `getTradeMetrics`, `getTradesByExchange`, `getTradeSuccessRate`, `getWorkerPerformance`, `getApiCallStats`, `getSignalOutcomes`. Each builds parameterized SQL and executes against the Analytics Engine SQL API.
+This isolate is **write-path only** via the Analytics Engine binding. Historical SQL query helpers against the Cloudflare REST SQL API were removed in favor of D1 (via [`d1-worker`](https://github.com/hoox-sh/d1-worker)) for queryable storage and dashboard aggregates.
 
 ### Fan-In Architecture
 

@@ -14,12 +14,42 @@ import type {
 
 // crypto is available globally in Cloudflare Workers - no import needed
 
+/** Analytics Engine blob / index size caps (bytes of UTF-16 code units ≈ chars). */
+export const MAX_BLOB_CHARS = 256;
+export const MAX_INDEX_CHARS = 96;
+export const MAX_INDEXES = 8;
+
+/** Coerce to a finite number; drop non-finite values as 0 (safe metric). */
+export function safeDouble(n: unknown, fallback = 0): number {
+  const v = typeof n === "number" ? n : Number(n);
+  return Number.isFinite(v) ? v : fallback;
+}
+
+/** Truncate / stringify blob fields so AE writeDataPoint never sees huge strings. */
+export function safeBlob(value: unknown, max = MAX_BLOB_CHARS): string {
+  const s = value == null ? "" : String(value);
+  if (s.length <= max) return s;
+  return s.slice(0, max);
+}
+
+export function safeIndex(value: unknown): string {
+  return safeBlob(value, MAX_INDEX_CHARS);
+}
+
+export function sanitizeIndexes(indexes: string[] | undefined): string[] {
+  if (!indexes?.length) return [];
+  return indexes.slice(0, MAX_INDEXES).map(safeIndex);
+}
+
 export const buildDataPoint = {
   trade(
     payload: TradePayload,
     result: TradeResult,
     latencyMs: number
   ): DataPoint {
+    const exchangeLabel = payload.test
+      ? `${payload.exchange}:test`
+      : payload.exchange;
     return {
       blobs: [
         "trade",
@@ -27,11 +57,15 @@ export const buildDataPoint = {
         result.success ? "success" : "failure",
         // Encode mode in exchange label so AE queries can filter without
         // a new blob index (index 5 would shift existing consumers).
-        payload.test ? `${payload.exchange}:test` : payload.exchange,
-        payload.symbol,
+        safeBlob(exchangeLabel),
+        safeBlob(payload.symbol),
       ],
-      doubles: [payload.quantity, payload.price ?? 0, latencyMs],
-      indexes: [payload.requestId || crypto.randomUUID()],
+      doubles: [
+        safeDouble(payload.quantity),
+        safeDouble(payload.price ?? 0),
+        safeDouble(latencyMs),
+      ],
+      indexes: [safeIndex(payload.requestId || crypto.randomUUID())],
     };
   },
 
@@ -44,12 +78,12 @@ export const buildDataPoint = {
     return {
       blobs: [
         "api-call",
-        worker,
+        safeBlob(worker),
         success ? "success" : "failure",
-        endpoint,
+        safeBlob(endpoint),
         "",
       ],
-      doubles: [latencyMs, 0, 0],
+      doubles: [safeDouble(latencyMs), 0, 0],
       indexes: [crypto.randomUUID()],
     };
   },
@@ -58,20 +92,30 @@ export const buildDataPoint = {
     return {
       blobs: [
         "worker-perf",
-        data.worker,
+        safeBlob(data.worker),
         data.errors > 0 ? "degraded" : "success",
         "",
         "",
       ],
-      doubles: [data.requests, data.errors, data.duration],
+      doubles: [
+        safeDouble(data.requests),
+        safeDouble(data.errors),
+        safeDouble(data.duration),
+      ],
       indexes: [crypto.randomUUID()],
     };
   },
 
   signal(data: SignalData): DataPoint {
     return {
-      blobs: ["signal", data.source, "pending", data.type, data.symbol],
-      doubles: [data.confidence, 0, 0],
+      blobs: [
+        "signal",
+        safeBlob(data.source),
+        "pending",
+        safeBlob(data.type),
+        safeBlob(data.symbol),
+      ],
+      doubles: [safeDouble(data.confidence), 0, 0],
       indexes: [crypto.randomUUID()],
     };
   },
@@ -80,9 +124,9 @@ export const buildDataPoint = {
     return {
       blobs: [
         "notification",
-        data.target,
+        safeBlob(data.target),
         data.success ? "success" : "failure",
-        data.type,
+        safeBlob(data.type),
         "",
       ],
       doubles: [0, 0, 0],

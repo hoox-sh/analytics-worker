@@ -365,7 +365,7 @@ describe("HTTP fetch handler", () => {
     expect(mockWriteDataPoint).not.toHaveBeenCalled();
   });
 
-  test("POST with invalid JSON body returns 500 (caught by top-level error boundary)", async () => {
+  test("POST with invalid JSON body returns 400 (drop invalid metric)", async () => {
     const { default: worker } = await import("../src/index");
     const req = new Request("http://localhost/track/trade", {
       method: "POST",
@@ -377,9 +377,80 @@ describe("HTTP fetch handler", () => {
     });
 
     const resp = await worker.fetch(req, mockEnv as any, {} as any);
-    expect(resp.status).toBe(500);
+    expect(resp.status).toBe(400);
     const data = (await resp.json()) as Record<string, unknown>;
     expect(data.success).toBe(false);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("POST /track/trade rejects NaN/Infinity metrics without writing", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
+      body: JSON.stringify({
+        payload: {
+          exchange: "binance",
+          action: "LONG",
+          symbol: "BTCUSDT",
+          quantity: Number.POSITIVE_INFINITY,
+        },
+        result: { success: true },
+        latencyMs: 10,
+      }),
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("POST /track/trade rejects unknown fields (.strict)", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
+      body: JSON.stringify({
+        payload: {
+          exchange: "binance",
+          action: "LONG",
+          symbol: "BTCUSDT",
+          quantity: 1,
+        },
+        result: { success: true },
+        evil: true,
+      }),
+    });
+
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
+  });
+
+  test("missing auth key fails closed with 401", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        payload: {
+          exchange: "binance",
+          action: "LONG",
+          symbol: "BTCUSDT",
+          quantity: 1,
+        },
+        result: { success: true },
+      }),
+    });
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(401);
+    expect(mockWriteDataPoint).not.toHaveBeenCalled();
   });
 });
 

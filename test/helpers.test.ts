@@ -3,7 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { buildDataPoint } from "../src/helpers";
+import {
+  buildDataPoint,
+  safeBlob,
+  safeDouble,
+  sanitizeIndexes,
+  MAX_BLOB_CHARS,
+} from "../src/helpers";
 import { describe, test, expect } from "bun:test";
 
 describe("buildDataPoint", () => {
@@ -226,5 +232,26 @@ describe("buildDataPoint", () => {
     });
 
     expect(dp.blobs[2]).toBe("failure");
+  });
+
+  test("safeDouble coerces non-finite to 0", () => {
+    expect(safeDouble(Number.NaN)).toBe(0);
+    expect(safeDouble(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(safeDouble("nope")).toBe(0);
+    expect(safeDouble(42)).toBe(42);
+  });
+
+  test("safeBlob truncates oversized strings", () => {
+    const long = "x".repeat(MAX_BLOB_CHARS + 50);
+    expect(safeBlob(long).length).toBe(MAX_BLOB_CHARS);
+  });
+
+  test("sanitizeIndexes caps count and truncates entries", () => {
+    const indexes = Array.from({ length: 20 }, (_, i) => `idx-${i}-${"y".repeat(200)}`);
+    const cleaned = sanitizeIndexes(indexes);
+    expect(cleaned.length).toBeLessThanOrEqual(8);
+    for (const idx of cleaned) {
+      expect(idx.length).toBeLessThanOrEqual(96);
+    }
   });
 });

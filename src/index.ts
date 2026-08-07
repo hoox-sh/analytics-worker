@@ -14,7 +14,7 @@ import type {
   SignalData,
   NotificationData,
 } from "./types";
-import { buildDataPoint } from "./helpers";
+import { buildDataPoint, sanitizeIndexes } from "./helpers";
 import {
   createLogger,
   withRequestLog,
@@ -37,43 +37,52 @@ import { z } from "zod";
 
 // ── Zod validation schemas ──────────────────────────────────────────
 // Each schema validates the HTTP request body for a specific endpoint.
+// Invalid metrics are dropped with 400 — never written to Analytics Engine.
+
+const MAX_JSON_BODY_BYTES = 64 * 1024; // 64 KiB — metrics payloads are small
+const MAX_STR = 256;
+const MAX_INDEXES = 8;
+
+const finiteNonNeg = z.number().finite().min(0).max(1e15);
+const finiteAny = z.number().finite().min(-1e15).max(1e15);
+const shortStr = z.string().min(1).max(MAX_STR);
 
 const TradeBodySchema = z
   .object({
     payload: z.object({
-      exchange: z.string(),
-      symbol: z.string(),
-      action: z.string(),
-      quantity: z.number(),
-      price: z.number().optional(),
-      requestId: z.string().optional(),
+      exchange: shortStr,
+      symbol: shortStr,
+      action: shortStr,
+      quantity: finiteAny,
+      price: finiteNonNeg.optional(),
+      requestId: z.string().max(MAX_STR).optional(),
       test: z.boolean().optional(),
     }),
     result: z.object({
       success: z.boolean(),
-      error: z.string().optional(),
+      error: z.string().max(MAX_STR).optional(),
     }),
-    latencyMs: z.number().optional(),
+    latencyMs: finiteNonNeg.optional(),
   })
   .strict();
 
 const ApiCallBodySchema = z
   .object({
-    worker: z.string(),
-    endpoint: z.string(),
-    latencyMs: z.number(),
+    worker: shortStr,
+    endpoint: shortStr,
+    latencyMs: finiteNonNeg,
     success: z.boolean(),
-    indexes: z.array(z.string()).optional(),
+    indexes: z.array(z.string().max(MAX_STR)).max(MAX_INDEXES).optional(),
   })
   .strict();
 
 const WorkerPerfBodySchema = z
   .object({
     data: z.object({
-      worker: z.string(),
-      requests: z.number(),
-      errors: z.number(),
-      duration: z.number(),
+      worker: shortStr,
+      requests: finiteNonNeg,
+      errors: finiteNonNeg,
+      duration: finiteNonNeg,
     }),
   })
   .strict();
@@ -81,10 +90,10 @@ const WorkerPerfBodySchema = z
 const SignalBodySchema = z
   .object({
     data: z.object({
-      source: z.string(),
-      type: z.string(),
-      symbol: z.string(),
-      confidence: z.number(),
+      source: shortStr,
+      type: shortStr,
+      symbol: shortStr,
+      confidence: z.number().finite().min(0).max(1),
     }),
   })
   .strict();
@@ -92,12 +101,104 @@ const SignalBodySchema = z
 const NotificationBodySchema = z
   .object({
     data: z.object({
-      type: z.string(),
-      target: z.string(),
+      type: shortStr,
+      target: shortStr,
       success: z.boolean(),
     }),
   })
   .strict();
+
+/**
+ * Parse JSON with a hard body-size cap. Invalid / oversized bodies yield 400
+ * (drop invalid metrics) rather than propagating to the top-level 500 boundary.
+ */
+async function readJsonBody(
+  request: Request
+): Promise<
+  { ok: true; value: unknown } | { ok: false; response: Response }
+> {
+  const contentLength = request.headers.get("Content-Length");
+  if (contentLength) {
+    const size = parseInt(contentLength, 10);
+    if (!Number.isFinite(size) || size < 0 || size > MAX_JSON_BODY_BYTES) {
+      return {
+        ok: false,
+        response: createJsonResponse(
+          {
+            success: false,
+            error: `Request body too large (max ${MAX_JSON_BODY_BYTES} bytes)`,
+          },
+          400
+        ),
+      };
+    }
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return {
+      ok: false,
+      response: createJsonResponse(
+        { success: false, error: "Empty request body" },
+        400
+      ),
+    };
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > MAX_JSON_BODY_BYTES) {
+        try {
+          await reader.cancel();
+        } catch {
+          /* ignore */
+        }
+        return {
+          ok: false,
+          response: createJsonResponse(
+            {
+              success: false,
+              error: `Request body too large (max ${MAX_JSON_BODY_BYTES} bytes)`,
+            },
+            400
+          ),
+        };
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  try {
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) {
+      merged.set(c, offset);
+      offset += c.byteLength;
+    }
+    const text = new TextDecoder().decode(merged);
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return {
+      ok: false,
+      response: createJsonResponse(
+        { success: false, error: "Invalid JSON in request body" },
+        400
+      ),
+    };
+  }
+}
 
 const logger = createLogger({ service: "analytics-worker" });
 
@@ -117,16 +218,18 @@ router.get("/health", async (_request, _env, _ctx) => {
 router.post(
   "/track/trade",
   async (request, env, _ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(TradeBodySchema, body);
+    const body = await readJsonBody(request);
+    if (!body.ok) return body.response;
+    const parsed = validateJson(TradeBodySchema, body.value);
     if (!parsed.ok) {
+      // Drop invalid metrics safely — do not write partial data points
       return createJsonResponse(
         { success: false, error: "Validation failed", details: parsed.error },
         400
       );
     }
     const { payload, result, latencyMs } = parsed.value;
-    await trackTrade(payload, result, latencyMs ?? 0, env);
+    trackTrade(payload, result, latencyMs ?? 0, env);
     return createJsonResponse({ success: true });
   },
   [internalAuth]
@@ -135,15 +238,16 @@ router.post(
 router.post(
   "/track/api-call",
   async (request, env, _ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(ApiCallBodySchema, body);
+    const body = await readJsonBody(request);
+    if (!body.ok) return body.response;
+    const parsed = validateJson(ApiCallBodySchema, body.value);
     if (!parsed.ok) {
       return createJsonResponse(
         { success: false, error: "Validation failed", details: parsed.error },
         400
       );
     }
-    await trackApiCall(env, parsed.value);
+    trackApiCall(env, parsed.value);
     return createJsonResponse({ success: true });
   },
   [internalAuth]
@@ -152,8 +256,9 @@ router.post(
 router.post(
   "/track/worker-perf",
   async (request, env, _ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(WorkerPerfBodySchema, body);
+    const body = await readJsonBody(request);
+    if (!body.ok) return body.response;
+    const parsed = validateJson(WorkerPerfBodySchema, body.value);
     if (!parsed.ok) {
       return createJsonResponse(
         { success: false, error: "Validation failed", details: parsed.error },
@@ -161,7 +266,7 @@ router.post(
       );
     }
     const { data } = parsed.value;
-    await trackWorkerPerf(data, env);
+    trackWorkerPerf(data, env);
     return createJsonResponse({ success: true });
   },
   [internalAuth]
@@ -170,8 +275,9 @@ router.post(
 router.post(
   "/track/signal",
   async (request, env, _ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(SignalBodySchema, body);
+    const body = await readJsonBody(request);
+    if (!body.ok) return body.response;
+    const parsed = validateJson(SignalBodySchema, body.value);
     if (!parsed.ok) {
       return createJsonResponse(
         { success: false, error: "Validation failed", details: parsed.error },
@@ -179,7 +285,7 @@ router.post(
       );
     }
     const { data } = parsed.value;
-    await trackSignal(data, env);
+    trackSignal(data, env);
     return createJsonResponse({ success: true });
   },
   [internalAuth]
@@ -188,8 +294,9 @@ router.post(
 router.post(
   "/track/notification",
   async (request, env, _ctx) => {
-    const body = await request.json();
-    const parsed = validateJson(NotificationBodySchema, body);
+    const body = await readJsonBody(request);
+    if (!body.ok) return body.response;
+    const parsed = validateJson(NotificationBodySchema, body.value);
     if (!parsed.ok) {
       return createJsonResponse(
         { success: false, error: "Validation failed", details: parsed.error },
@@ -197,7 +304,7 @@ router.post(
       );
     }
     const { data } = parsed.value;
-    await trackNotification(data, env);
+    trackNotification(data, env);
     return createJsonResponse({ success: true });
   },
   [internalAuth]
@@ -222,10 +329,10 @@ export function trackTrade(
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
 
-export async function trackApiCall(
+export function trackApiCall(
   env: Env,
   body: z.infer<typeof ApiCallBodySchema>
-): Promise<void> {
+): void {
   const dataPoint = buildDataPoint.apiCall(
     body.worker,
     body.endpoint,
@@ -233,7 +340,10 @@ export async function trackApiCall(
     body.success
   );
   if (body.indexes?.length) {
-    dataPoint.indexes = [...dataPoint.indexes, ...body.indexes];
+    dataPoint.indexes = [
+      ...dataPoint.indexes,
+      ...sanitizeIndexes(body.indexes),
+    ];
   }
   env.ANALYTICS_ENGINE.writeDataPoint(dataPoint);
 }
