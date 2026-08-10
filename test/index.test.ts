@@ -522,3 +522,72 @@ describe("trackApiCall indexes", () => {
     expect(dp.indexes).toHaveLength(1);
   });
 });
+
+describe("readJsonBody size / empty guards", () => {
+  test("rejects Content-Length over max", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+        "Content-Length": String(65 * 1024),
+      },
+      body: "{}",
+    });
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    const data = (await resp.json()) as { error?: string };
+    expect(String(data.error || "")).toMatch(/too large/i);
+  });
+
+  test("rejects negative Content-Length", async () => {
+    const { default: worker } = await import("../src/index");
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+        "Content-Length": "-1",
+      },
+      body: "{}",
+    });
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+  });
+
+  test("rejects empty request body (no stream)", async () => {
+    const { default: worker } = await import("../src/index");
+    // Construct a Request-like path: POST with null body is hard in undici;
+    // use a body that is empty string which still has a stream — instead
+    // force Content-Length 0 and empty body.
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
+      body: "",
+    });
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    // empty body → invalid JSON or empty
+    expect([400, 500]).toContain(resp.status);
+  });
+
+  test("rejects streaming body that exceeds max without Content-Length", async () => {
+    const { default: worker } = await import("../src/index");
+    const big = "x".repeat(70 * 1024);
+    const req = new Request("http://localhost/track/trade", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Auth-Key": "test-internal-key",
+      },
+      body: big,
+    });
+    const resp = await worker.fetch(req, mockEnv as any, {} as any);
+    expect(resp.status).toBe(400);
+    const data = (await resp.json()) as { error?: string };
+    expect(String(data.error || "")).toMatch(/too large/i);
+  });
+});
