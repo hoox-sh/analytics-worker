@@ -2,9 +2,9 @@
   "display_name": "Analytics Worker",
   "description": "Event tracking, metrics collection, and analytics querying for the Hoox trading system using Cloudflare Analytics Engine",
   "sections": {
-    "global": {
+    "ai": {
       "title": "Analytics Engine",
-      "description": "Cloudflare Analytics Engine configuration for data collection and querying",
+      "description": "Cloudflare Analytics Engine configuration for data collection and querying (ai:* keys — not gateway global:)",
       "icon": "bar-chart",
       "priority": 10,
       "fields": {
@@ -17,7 +17,7 @@
         "sample_rate": [0.1, 0.25, 0.5, 0.75, 1.0],
       },
       "descriptions": {
-        "enabled": "Master toggle for analytics collection. If false, no data points are written.",
+        "enabled": "Master toggle for analytics collection (ai:enabled). If false, no data points are written.",
         "retention_days": "Number of days Analytics Engine retains data (Cloudflare default is 90).",
         "sample_rate": "Fraction of events to record (1.0 = 100%, 0.1 = 10%).",
       },
@@ -60,21 +60,8 @@
         "cloudflare_account_id": true,
       },
       "secret_commands": {
-        "cloudflare_api_token": "hoox secrets update-cf cloudflare_api_token analytics-worker",
-        "cloudflare_account_id": "hoox secrets update-cf cloudflare_account_id analytics-worker",
-      },
-    },
-    "endpoints": {
-      "title": "Available Endpoints",
-      "description": "REST endpoints exposed by the analytics-worker for manual tracking and querying",
-      "icon": "globe",
-      "priority": 40,
-      "fields": {
-        "POST /track/trade": "Track a trade execution event",
-        "POST /track/api-call": "Track an inter-worker API call",
-        "POST /track/worker-perf": "Track worker performance metrics",
-        "POST /track/signal": "Track an incoming signal event",
-        "POST /track/notification": "Track a notification delivery event",
+        "cloudflare_api_token": "hoox secrets update-cf analytics-worker cloudflare_api_token",
+        "cloudflare_account_id": "hoox secrets update-cf analytics-worker cloudflare_account_id",
       },
     },
   },
