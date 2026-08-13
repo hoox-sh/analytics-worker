@@ -187,8 +187,11 @@ async function readJsonBody(
       merged.set(c, offset);
       offset += c.byteLength;
     }
-    const text = new TextDecoder().decode(merged);
-    return { ok: true, value: JSON.parse(text) };
+    const text = new TextDecoder("utf-8", {
+      fatal: false,
+      ignoreBOM: true,
+    }).decode(merged);
+    return { ok: true, value: JSON.parse(text) as unknown };
   } catch {
     return {
       ok: false,
